@@ -4503,23 +4503,25 @@ window.closeLoginModal = function () { var m = el('login-modal'); if (m) { m.sty
 window.closeSignupModal = function () { var m = el('signup-modal'); if (m) { m.style.display = 'none'; m.classList.remove('active'); } };
 window.openLoginModal = function () { var m = el('login-modal'); if (m) { m.style.display = 'flex'; m.classList.add('active'); document.body.style.overflow = 'hidden'; } };
 window.openTermsModal = function() {
-    const m = el('terms-modal');
-    const c = el('terms-content');
-    if (m && c && window.ALSAT_TERMS_CONTENT) {
-        const lang = window.currentLang || 'mk';
-        const content = typeof window.ALSAT_TERMS_CONTENT === 'object'
-            ? (window.ALSAT_TERMS_CONTENT[lang] || window.ALSAT_TERMS_CONTENT.mk || window.ALSAT_TERMS_CONTENT.tr || '')
-            : window.ALSAT_TERMS_CONTENT;
-        c.innerHTML = content;
-        const titleEl = m.querySelector('.modal-title');
-        if (titleEl) titleEl.innerHTML = '<i class="fa-solid fa-file-contract"></i> Alsat ' + ((window.TRANSLATIONS?.[lang]?.termsModalTitle) || (lang === 'tr' ? 'Kullanım Koşulları' : 'Terms of Use'));
-        m.style.display = 'flex';
-        m.classList.add('active');
+    var m = document.getElementById('terms-modal');
+    var c = document.getElementById('terms-content');
+    if (!m || !c) return;
+    var lang = window.currentLang || 'mk';
+    var termsData = window.ALSAT_TERMS_CONTENT;
+    if (termsData && typeof termsData === 'object') {
+        c.innerHTML = termsData[lang] || termsData.tr || termsData.mk || termsData.en || termsData.al || '';
+    } else if (termsData) {
+        c.innerHTML = termsData;
     }
+    var titleEl = m.querySelector('.modal-title');
+    if (titleEl) titleEl.innerHTML = '<i class="fa-solid fa-file-contract"></i> Alsat ' + ((window.TRANSLATIONS && window.TRANSLATIONS[lang] && window.TRANSLATIONS[lang].termsModalTitle) || (lang === 'tr' ? 'Kullanım Koşulları' : 'Terms of Use'));
+    m.style.display = 'flex';
+    m.classList.add('active');
+    document.body.style.overflow = 'hidden';
 };
 window.closeTermsModal = function() {
-    const m = el('terms-modal');
-    if (m) { m.style.display = 'none'; m.classList.remove('active'); }
+    var m = document.getElementById('terms-modal');
+    if (m) { m.style.display = 'none'; m.classList.remove('active'); document.body.style.overflow = ''; }
 };
 
 window.closeForgotModal = function () {
@@ -5115,6 +5117,12 @@ document.addEventListener('DOMContentLoaded', async function() {
         var logoHome = document.getElementById('logo-home');
         if (searchBtn) searchBtn.addEventListener('click', function() { if (typeof showListingPage === 'function') showListingPage(); if (typeof applyFilters === 'function') applyFilters(); });
         if (logoHome) logoHome.addEventListener('click', function(e) { e.preventDefault(); if (typeof showHomepage === 'function') showHomepage(); });
+        // Kullanım koşulları linki - tıklayınca sözleşme sayfası açılsın (en başta bağla)
+        var termsLink = document.getElementById('open-terms-link');
+        if (termsLink) {
+            termsLink.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); if (window.openTermsModal) window.openTermsModal(); });
+            termsLink.addEventListener('touchend', function(e) { e.preventDefault(); if (window.openTermsModal) window.openTermsModal(); }, { passive: false });
+        }
     })();
 
     const sendCodeBtn = el('signup-send-code-btn');
@@ -5832,7 +5840,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             if (modal) {
                 modal.style.display = 'none';
                 modal.classList.remove('active');
-                if (modal.id === 'login-modal') document.body.style.overflow = '';
+                if (modal.id === 'login-modal' || modal.id === 'terms-modal') document.body.style.overflow = '';
             }
         });
     });
