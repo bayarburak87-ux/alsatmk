@@ -8,6 +8,28 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const db = require('./db');
+const { sendVerificationCode } = require('./mail');
+
+// Doğrulama kodları (e-posta -> { code, expires, type })
+const verificationCodes = new Map();
+const CODE_TTL = 10 * 60 * 1000; // 10 dakika
+
+function generateCode() {
+  return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+function setCode(email, type) {
+  const code = generateCode();
+  verificationCodes.set(email.toLowerCase(), { code, expires: Date.now() + CODE_TTL, type });
+  return code;
+}
+
+function verifyCode(email, code, type) {
+  const entry = verificationCodes.get(email.toLowerCase());
+  if (!entry || entry.code !== String(code) || entry.type !== type || Date.now() > entry.expires) return false;
+  verificationCodes.delete(email.toLowerCase());
+  return true;
+}
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -157,6 +179,94 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
+// ========== E-POSTA DOĞRULAMA & ŞİFRE SIFIRLAMA ==========
+app.post('/api/auth/send-code', async (req, res) => {
+  try {
+    const { type, email } = req.body;
+    const em = (email || '').trim().toLowerCase();
+    if (!em || !['register', 'forgot'].includes(type)) {
+      return res.status(400).json({ error: 'Geçersiz istek' });
+    }
+    if (type === 'forgot') {
+      const { sql: s, params: p } = paramStyle('SELECT id FROM users WHERE LOWER(TRIM(email)) = ?', [em]);
+      const row = await db.getAsync(s, p);
+      if (!row) return res.status(404).json({ error: 'Bu e-posta adresi kayıtlı değil' });
+    } else {
+      const { sql: s, params: p } = paramStyle('SELECT id FROM users WHERE LOWER(TRIM(email)) = ?', [em]);
+      const row = await db.getAsync(s, p);
+      if (row) return res.status(400).json({ error: 'Bu e-posta adresi zaten kayıtlı' });
+    }
+    const code = setCode(em, type);
+    await sendVerificationCode(em, code, type);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('send-code:', e);
+    res.status(500).json({ error: e.message || 'E-posta gönderilemedi' });
+  }
+});
+
+app.post('/api/auth/verify-register', async (req, res) => {
+  try {
+    const { email, code, name, password } = req.body;
+    const em = (email || '').trim().toLowerCase();
+    if (!em || !code || !password || password.length < 6) {
+      return res.status(400).json({ error: 'Eksik veya geçersiz bilgi' });
+    }
+    if (!verifyCode(em, code, 'register')) {
+      return res.status(400).json({ error: 'Geçersiz veya süresi dolmuş kod' });
+    }
+    const bcrypt = require('bcryptjs');
+    const hash = bcrypt.hashSync(password, 10);
+    const { sql: s, params: p } = paramStyle('INSERT INTO users (email, name, password_hash) VALUES (?, ?, ?)', [em, (name || '').trim() || em.split('@')[0], hash]);
+    const r = await db.runAsync(s, p);
+    res.status(201).json({ id: r.insertId || r.insert_id });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/auth/verify-forgot', async (req, res) => {
+  try {
+    const { email, code, newPassword } = req.body;
+    const em = (email || '').trim().toLowerCase();
+    if (!em || !code || !newPassword || newPassword.length < 6) {
+      return res.status(400).json({ error: 'Eksik veya geçersiz bilgi' });
+    }
+    if (!verifyCode(em, code, 'forgot')) {
+      return res.status(400).json({ error: 'Geçersiz veya süresi dolmuş kod' });
+    }
+    const bcrypt = require('bcryptjs');
+    const hash = bcrypt.hashSync(newPassword, 10);
+    const { sql: s1, params: p1 } = paramStyle('SELECT id FROM users WHERE LOWER(TRIM(email)) = ?', [em]);
+    const row = await db.getAsync(s1, p1);
+    if (!row) return res.status(404).json({ error: 'Kullanıcı bulunamadı' });
+    const { sql: s2, params: p2 } = paramStyle('UPDATE users SET password_hash = ? WHERE id = ?', [hash, row.id]);
+    await db.runAsync(s2, p2);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const em = (email || '').trim().toLowerCase();
+    if (!em || !password) return res.status(400).json({ error: 'E-posta ve şifre gerekli' });
+    const { sql: s, params: p } = paramStyle('SELECT id, email, name, password_hash, banned FROM users WHERE LOWER(TRIM(email)) = ?', [em]);
+    const row = await db.getAsync(s, p);
+    if (!row) return res.status(401).json({ error: 'E-posta veya şifre hatalı' });
+    if (row.banned) return res.status(403).json({ error: 'Hesabınız engellenmiş' });
+    const bcrypt = require('bcryptjs');
+    if (!bcrypt.compareSync(password, row.password_hash || '')) {
+      return res.status(401).json({ error: 'E-posta veya şifre hatalı' });
+    }
+    res.json({ id: row.id, email: row.email, name: row.name });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // ========== FAVORİLER ==========
 app.get('/api/favorites/:userId', async (req, res) => {
   try {
@@ -187,6 +297,30 @@ app.delete('/api/favorites/:userId/:adId', async (req, res) => {
   try {
     const { sql: s, params: p } = paramStyle('DELETE FROM favorites WHERE user_id = ? AND ad_id = ?', [parseInt(req.params.userId), parseInt(req.params.adId)]);
     await db.runAsync(s, p);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ========== ADMIN RESET (Tüm ilanlar + admin dışı kullanıcılar silinir) ==========
+const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'bayarburak87@gmail.com').toLowerCase();
+const ADMIN_RESET_TOKEN = process.env.ADMIN_RESET_TOKEN;
+
+app.post('/api/admin/reset', async (req, res) => {
+  if (ADMIN_RESET_TOKEN && req.headers['x-admin-token'] !== ADMIN_RESET_TOKEN) {
+    return res.status(403).json({ error: 'Yetkisiz' });
+  }
+  try {
+    await db.runAsync('DELETE FROM ads', []);
+    await db.runAsync('DELETE FROM favorites', []);
+    const adminRow = await db.getAsync('SELECT id FROM users WHERE LOWER(TRIM(email)) = ?', [ADMIN_EMAIL]);
+    if (adminRow) {
+      const { sql: delSql, params: delParams } = paramStyle('DELETE FROM users WHERE id != ?', [adminRow.id]);
+      await db.runAsync(delSql, delParams);
+    } else {
+      await db.runAsync('DELETE FROM users', []);
+    }
     res.json({ ok: true });
   } catch (e) {
     res.status(500).json({ error: e.message });

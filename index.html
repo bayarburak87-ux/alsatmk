@@ -658,7 +658,15 @@
                             <span id="agree-text">Kullanıcı Sözleşmesini okudum ve kabul ediyorum</span>
                         </label>
 
-                        <button type="submit" class="modern-submit-btn" style="margin-top: 20px;">
+                        <div id="signup-code-step" style="display:none;">
+                            <p id="signup-code-desc" style="margin-bottom:12px;color:var(--text-muted);">E-postanıza gelen 6 haneli doğrulama kodunu girin.</p>
+                            <div class="input-group" style="margin-bottom:12px;">
+                                <label>DOĞRULAMA KODU</label>
+                                <input type="text" id="signup-verify-code" placeholder="123456" maxlength="6" pattern="[0-9]*" inputmode="numeric">
+                            </div>
+                        </div>
+
+                        <button type="submit" class="modern-submit-btn" style="margin-top: 20px;" id="signup-submit-btn">
                             <span id="signup-btn-text">Üye Ol</span>
                         </button>
 
@@ -680,9 +688,37 @@
         <div class="modal-content login-modal-content">
             <span class="close-btn" onclick="window.closeForgotModal()">&times;</span>
             <h2 id="forgot-title" class="modal-title">Şifremi Unuttum</h2>
-            <p id="forgot-desc">E-posta adresinizi girin, şifre sıfırlama bağlantısı gönderelim.</p>
-            <input type="email" id="forgot-email" placeholder="example@mail.com">
-            <button class="modern-submit-btn" id="forgot-send-btn">Bağlantı Gönder</button>
+            <div id="forgot-step1">
+                <p id="forgot-desc">E-posta adresinizi girin, doğrulama kodu gönderelim.</p>
+                <div class="input-group" style="margin-bottom:12px;">
+                    <label>E-POSTA</label>
+                    <input type="email" id="forgot-email" placeholder="example@mail.com">
+                </div>
+                <button class="modern-submit-btn" id="forgot-send-btn">Kod Gönder</button>
+            </div>
+            <div id="forgot-step2" style="display:none;">
+                <p id="forgot-code-desc">E-postanıza gelen 6 haneli kodu girin ve yeni şifrenizi belirleyin.</p>
+                <div class="input-group" style="margin-bottom:12px;">
+                    <label>DOĞRULAMA KODU</label>
+                    <input type="text" id="forgot-code" placeholder="123456" maxlength="6" pattern="[0-9]*" inputmode="numeric">
+                </div>
+                <div class="input-group" style="margin-bottom:12px;">
+                    <label>YENİ ŞİFRE</label>
+                    <div class="password-wrapper">
+                        <input type="password" id="forgot-new-password" placeholder="En az 6 karakter">
+                        <button type="button" class="toggle-password"><i class="fa-solid fa-eye"></i></button>
+                    </div>
+                </div>
+                <div class="input-group" style="margin-bottom:12px;">
+                    <label>ŞİFRE TEKRARI</label>
+                    <div class="password-wrapper">
+                        <input type="password" id="forgot-confirm-password" placeholder="Şifrenizi tekrar girin">
+                        <button type="button" class="toggle-password"><i class="fa-solid fa-eye"></i></button>
+                    </div>
+                </div>
+                <button class="modern-submit-btn" id="forgot-reset-btn">Şifreyi Sıfırla</button>
+                <button type="button" class="signup-btn" id="forgot-back-btn" style="margin-top:12px;">Geri</button>
+            </div>
         </div>
     </div>
 
@@ -1432,6 +1468,8 @@
                     <h3><i class="fa-solid fa-database"></i> Veritabanı</h3>
                     <button class="admin-btn" id="admin-reset-ads">Varsayılan İlanlara Sıfırla</button>
                     <p class="admin-hint">İlan veritabanını 100 varsayılan ilan ile sıfırlar.</p>
+                    <button class="admin-btn admin-btn-danger" id="admin-clear-all" style="margin-top:12px;background:#c0392b;"><i class="fa-solid fa-trash-can"></i> Tüm Verileri Temizle</button>
+                    <p class="admin-hint" style="margin-top:6px;">Tüm ilanları ve admin dışındaki tüm kullanıcıları siler. Geri alınamaz.</p>
                 </div>
             </div>
             <div id="admin-tab-users" class="admin-tab-pane">

@@ -314,6 +314,8 @@ function updateLanguage(lang) {
     set('form-label-video', 'textContent', L.videoLabel);
     set('forgot-title', 'textContent', L.forgotPasswordTitle);
     set('forgot-desc', 'textContent', L.forgotPasswordDesc);
+    set('forgot-code-desc', 'textContent', L.forgotCodeDesc || 'E-postanıza gelen 6 haneli kodu girin ve yeni şifrenizi belirleyin.');
+    set('signup-code-desc', 'textContent', L.signupCodeDesc || 'E-postanıza gelen 6 haneli doğrulama kodunu girin.');
     set('forgot-send-btn', 'textContent', L.sendResetLink);
     const sehirOpt = el('sehir-select')?.querySelector('option[value=""]');
     if (sehirOpt) sehirOpt.textContent = L.allMacedonia;
@@ -4459,7 +4461,12 @@ window.closePaymentModal = function () {
 window.closeLoginModal = function () { var m = el('login-modal'); if (m) { m.style.display = 'none'; m.classList.remove('active'); } };
 window.closeSignupModal = function () { var m = el('signup-modal'); if (m) { m.style.display = 'none'; m.classList.remove('active'); } };
 window.openLoginModal = function () { var m = el('login-modal'); if (m) { m.style.display = 'flex'; m.classList.add('active'); } };
-window.closeForgotModal = function () { el('forgot-modal').style.display = 'none'; };
+window.closeForgotModal = function () {
+    const m = el('forgot-modal');
+    if (m) m.style.display = 'none';
+    if (el('forgot-step1')) el('forgot-step1').style.display = 'block';
+    if (el('forgot-step2')) el('forgot-step2').style.display = 'none';
+};
 window.closeModal = function () { el('ilan-modal').style.display = 'none'; };
 
 // Close modal on outside click
@@ -4852,12 +4859,29 @@ el('ilan-formu')?.addEventListener('submit', async function(e) {
 });
 
 // ========== LOGIN / SIGNUP ==========
-el('login-formu')?.addEventListener('submit', function(e) {
+el('login-formu')?.addEventListener('submit', async function(e) {
     e.preventDefault();
-    if (!window.usersDatabase) loadUsersDatabase();
     const email = (el('login-username')?.value || '').trim();
     const password = (el('login-password')?.value || '').trim();
     if (!email) { showToast('loginRequired', 'warning', 2000); return; }
+    if (window.API_BASE && window.AlsatAPI) {
+        try {
+            const user = await window.AlsatAPI.login(email, password);
+            if (user && user.id) {
+                getOrCreateUser(user.id, user.email, user.name);
+                setCurrentUser(user);
+                updateHeaderUI();
+                closeLoginModal();
+                showToast('loginSuccess', 'success', 2000);
+                this.reset();
+            }
+        } catch (err) {
+            const msg = err?.message || (typeof err === 'object' && err.error) || 'Giriş başarısız';
+            showToast(msg, 'error', 2500);
+        }
+        return;
+    }
+    if (!window.usersDatabase) loadUsersDatabase();
     const existing = Object.values(window.usersDatabase || {}).find(u => (u.email || '').toLowerCase() === email.toLowerCase());
     if (existing && existing.password) {
         if (password !== existing.password) { showToast(t('wrongPassword') || 'Şifre hatalı', 'error', 2500); return; }
@@ -4871,10 +4895,51 @@ el('login-formu')?.addEventListener('submit', function(e) {
     this.reset();
 });
 
-el('signup-formu')?.addEventListener('submit', function(e) {
+el('signup-formu')?.addEventListener('submit', async function(e) {
     e.preventDefault();
-    const user = { id: Date.now(), email: el('signup-email').value, name: el('signup-name').value };
+    const name = (el('signup-name')?.value || '').trim();
+    const email = (el('signup-email')?.value || '').trim().toLowerCase();
+    const password = (el('signup-password')?.value || '').trim();
+    const confirm = (el('signup-confirm')?.value || '').trim();
+    if (!email || !name) { showToast(t('loginRequired') || 'E-posta ve ad gerekli', 'warning', 2000); return; }
+    if (password.length < 6) { showToast(t('passwordMin6') || 'Şifre en az 6 karakter olmalı', 'warning', 2000); return; }
+    if (password !== confirm) { showToast(t('passwordsMustMatch') || 'Şifreler eşleşmiyor', 'warning', 2000); return; }
+    if (window.API_BASE && window.AlsatAPI) {
+        const codeStep = el('signup-code-step');
+        const codeInput = el('signup-verify-code');
+        if (codeStep && codeStep.style.display === 'none') {
+            try {
+                await window.AlsatAPI.sendCode('register', email);
+                if (codeStep) codeStep.style.display = 'block';
+                if (codeInput) { codeInput.value = ''; codeInput.focus(); }
+                showToast(t('codeSent') || 'Doğrulama kodu e-postanıza gönderildi', 'success', 3000);
+            } catch (err) {
+                showToast(err?.error || err?.message || 'Kod gönderilemedi', 'error', 3000);
+            }
+            return;
+        }
+        const code = (codeInput?.value || '').trim();
+        if (!code || code.length !== 6) { showToast(t('enterValidCode') || 'Geçerli 6 haneli kodu girin', 'warning', 2000); return; }
+        try {
+            const r = await window.AlsatAPI.verifyRegister(email, code, name, password);
+            if (r && r.id) {
+                getOrCreateUser(r.id, email, name);
+                setCurrentUser({ id: r.id, email, name });
+                updateHeaderUI();
+                closeSignupModal();
+                if (codeStep) codeStep.style.display = 'none';
+                if (codeInput) codeInput.value = '';
+                showToast('signupSuccess', 'success', 2000);
+                this.reset();
+            }
+        } catch (err) {
+            showToast(err?.error || err?.message || 'Kayıt başarısız', 'error', 3000);
+        }
+        return;
+    }
+    const user = { id: Date.now(), email, name };
     getOrCreateUser(user.id, user.email, user.name);
+    if (window.usersDatabase && window.usersDatabase[String(user.id)]) window.usersDatabase[String(user.id)].password = password;
     setCurrentUser(user);
     updateHeaderUI();
     closeSignupModal();
@@ -4887,11 +4952,15 @@ el('switch-signup')?.addEventListener('click', function(e) {
     e.preventDefault();
     closeLoginModal();
     el('signup-modal').style.display = 'flex';
+    const codeStep = el('signup-code-step');
+    if (codeStep) codeStep.style.display = 'none';
 });
 
 el('switch-login')?.addEventListener('click', function(e) {
     e.preventDefault();
     closeSignupModal();
+    const codeStep = el('signup-code-step');
+    if (codeStep) codeStep.style.display = 'none';
     window.openLoginModal?.();
 });
 
@@ -5056,6 +5125,73 @@ document.addEventListener('DOMContentLoaded', async function() {
         renderAdminAds();
         applyFilters();
         showToast('saved', 'success', 2000);
+    });
+    el('admin-clear-all')?.addEventListener('click', async function() {
+        if (!isAdmin()) return;
+        if (!confirm('Tüm ilanlar ve admin dışındaki tüm kullanıcılar silinecek. Favoriler, mesajlar, bildirimler vb. temizlenecek. GERİ ALINAMAZ. Devam?')) return;
+        if (!confirm('Son kez onaylayın: TÜM VERİLER SİLİNECEK (admin hariç). Devam?')) return;
+        try {
+            if (window.API_BASE && window.AlsatAPI) {
+                await window.AlsatAPI.resetAll();
+            }
+            window.adsDatabase = [];
+            const adminEmail = (ADMIN_EMAIL || 'bayarburak87@gmail.com').toLowerCase();
+            const db = window.usersDatabase || {};
+            const admin = Object.values(db).find(u => (u.email || '').toLowerCase() === adminEmail);
+            window.usersDatabase = admin ? { [String(admin.id)]: admin } : {};
+            window.favorites = [];
+            window.favoriteLists = {};
+            window.conversations = {};
+            window.notifications = [];
+            window.reportsDatabase = [];
+            window.recentlyViewed = [];
+            window.searchHistory = [];
+            window.compareList = [];
+            window.priceAlerts = [];
+            window.searchAlerts = [];
+            window.soldSurveyDone = [];
+            window.userCredits = admin ? { [admin.id]: (window.userCredits || {})[admin.id] || 0 } : {};
+            window.userVerifiedUntil = admin ? (window.userVerifiedUntil && window.userVerifiedUntil[admin.id] ? { [admin.id]: window.userVerifiedUntil[admin.id] } : {}) : {};
+            window.savedFilters = [];
+            window.adminAuditLog = [];
+            window.storeFavorites = [];
+            window.storeCart = [];
+            window.sellerApplications = [];
+            window.storePhotoRequests = [];
+            window.storeProductRequests = [];
+            window.productQuestions = [];
+            saveAdsDatabase();
+            saveFavorites();
+            saveFavoriteLists();
+            saveConversations();
+            saveNotifications();
+            saveReports();
+            saveRecentlyViewed();
+            saveSearchHistory();
+            saveCompareList();
+            savePriceAlerts();
+            saveSearchAlerts();
+            saveSoldSurveyDone();
+            saveCredits();
+            saveVerified();
+            saveUsersDatabase();
+            saveAdminAuditLog();
+            saveStoreFavorites();
+            saveStoreCart();
+            saveSavedFilters();
+            saveSellerApplications();
+            saveStorePhotoRequests();
+            saveStoreProductRequests();
+            saveProductQuestions();
+            updateAdminStats();
+            renderAdminAds();
+            renderAdminUsers();
+            applyFilters();
+            showToast('Tüm veriler temizlendi', 'success', 3000);
+        } catch (e) {
+            console.error(e);
+            showToast('Hata: ' + (e.message || 'İşlem başarısız'), 'error', 3000);
+        }
     });
     el('admin-search-ads')?.addEventListener('input', renderAdminAds);
     el('admin-search-ads')?.addEventListener('keyup', renderAdminAds);
@@ -5325,13 +5461,60 @@ document.addEventListener('DOMContentLoaded', async function() {
         e.preventDefault();
         el('login-modal').style.display = 'none';
         el('forgot-modal').style.display = 'flex';
-    });
-    el('forgot-send-btn')?.addEventListener('click', function() {
-        const email = el('forgot-email')?.value?.trim();
-        if (!email) { showToast('invalidAmount', 'warning', 2000); return; }
-        showToast('resetLinkSent', 'success', 2500);
+        el('forgot-step1').style.display = 'block';
+        el('forgot-step2').style.display = 'none';
         el('forgot-email').value = '';
-        window.closeForgotModal();
+        el('forgot-code')?.value = '';
+        el('forgot-new-password')?.value = '';
+        el('forgot-confirm-password')?.value = '';
+    });
+    el('forgot-send-btn')?.addEventListener('click', async function() {
+        const email = (el('forgot-email')?.value || '').trim();
+        if (!email) { showToast(t('invalidAmount') || 'Geçerli e-posta girin', 'warning', 2000); return; }
+        if (window.API_BASE && window.AlsatAPI) {
+            try {
+                await window.AlsatAPI.sendCode('forgot', email);
+                el('forgot-step1').style.display = 'none';
+                el('forgot-step2').style.display = 'block';
+                el('forgot-code')?.focus();
+                showToast(t('codeSent') || 'Doğrulama kodu e-postanıza gönderildi', 'success', 3000);
+            } catch (err) {
+                showToast(err?.error || err?.message || 'Kod gönderilemedi', 'error', 3000);
+            }
+            return;
+        }
+        showToast('Şifre sıfırlama için info@alsatmk.com adresine yazın', 'info', 4000);
+    });
+    el('forgot-back-btn')?.addEventListener('click', function() {
+        el('forgot-step1').style.display = 'block';
+        el('forgot-step2').style.display = 'none';
+    });
+    el('forgot-reset-btn')?.addEventListener('click', async function() {
+        const email = (el('forgot-email')?.value || '').trim();
+        const code = (el('forgot-code')?.value || '').trim();
+        const newPwd = (el('forgot-new-password')?.value || '').trim();
+        const confirmPwd = (el('forgot-confirm-password')?.value || '').trim();
+        if (!email || !code) { showToast(t('enterValidCode') || 'Kod girin', 'warning', 2000); return; }
+        if (newPwd.length < 6) { showToast(t('passwordMin6') || 'Şifre en az 6 karakter olmalı', 'warning', 2000); return; }
+        if (newPwd !== confirmPwd) { showToast(t('passwordsMustMatch') || 'Şifreler eşleşmiyor', 'warning', 2000); return; }
+        if (window.API_BASE && window.AlsatAPI) {
+            try {
+                await window.AlsatAPI.verifyForgot(email, code, newPwd);
+                window.closeForgotModal();
+                window.openLoginModal?.();
+                showToast(t('passwordResetSuccess') || 'Şifreniz güncellendi. Giriş yapabilirsiniz.', 'success', 3000);
+            } catch (err) {
+                showToast(err?.error || err?.message || 'Şifre sıfırlama başarısız', 'error', 3000);
+            }
+        }
+    });
+    qsa('#forgot-modal .toggle-password').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const input = this.parentElement.querySelector('input');
+            const icon = this.querySelector('i');
+            if (input.type === 'password') { input.type = 'text'; icon?.classList.replace('fa-eye', 'fa-eye-slash'); }
+            else { input.type = 'password'; icon?.classList.replace('fa-eye-slash', 'fa-eye'); }
+        });
     });
 
     initBannerClicks();

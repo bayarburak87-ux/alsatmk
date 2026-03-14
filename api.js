@@ -8,8 +8,13 @@
 
   async function fetchJson(url, opts) {
     const res = await fetch(url, opts);
-    if (!res.ok) throw new Error(res.statusText);
-    return res.json();
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const err = new Error(data.error || res.statusText);
+      err.error = data.error;
+      throw err;
+    }
+    return data;
   }
 
   window.AlsatAPI = {
@@ -31,6 +36,40 @@
       try {
         return await fetchJson(base() + '/api/users');
       } catch (e) { return null; }
+    },
+    async login(email, password) {
+      if (!base()) return null;
+      const r = await fetchJson(base() + '/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
+      });
+      return r;
+    },
+    async sendCode(type, email) {
+      if (!base()) return null;
+      return fetchJson(base() + '/api/auth/send-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type, email })
+      });
+    },
+    async verifyRegister(email, code, name, password) {
+      if (!base()) return null;
+      const r = await fetchJson(base() + '/api/auth/verify-register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, code, name, password })
+      });
+      return r;
+    },
+    async verifyForgot(email, code, newPassword) {
+      if (!base()) return null;
+      return fetchJson(base() + '/api/auth/verify-forgot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, code, newPassword })
+      });
     },
     async createAd(data) {
       if (!base()) return null;
@@ -73,6 +112,14 @@
       try {
         await fetch(base() + '/api/favorites/' + userId + '/' + adId, { method: 'DELETE' });
       } catch (e) {}
+    },
+    async resetAll(token) {
+      if (!base()) return null;
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['X-Admin-Token'] = token;
+      const res = await fetch(base() + '/api/admin/reset', { method: 'POST', headers });
+      if (!res.ok) throw new Error(res.statusText);
+      return res.json();
     },
     normalizeAds(rows) {
       if (!Array.isArray(rows)) return [];
