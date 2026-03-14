@@ -5341,9 +5341,12 @@ document.addEventListener('DOMContentLoaded', async function() {
         link.href = 'manifest.json';
         if (!link.parentNode) document.head.appendChild(link);
     }
+    /* Service Worker geçici devre dışı - önbellek kilidi sorunu (gizli sekme/farklı cihaz eski versiyon görüyor) */
+    /*
     if (isSecureOrigin && 'serviceWorker' in navigator) {
         navigator.serviceWorker.register('./sw.js').catch(function() {});
     }
+    */
     const hash = location.hash;
     const m = hash && hash.match(/^#ad=(\d+)/);
     if (m) { showListingPage(); setTimeout(() => window.ilanDetayAc(parseInt(m[1])), 300); }
