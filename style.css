@@ -182,11 +182,12 @@ body.light-theme .arama-cubugu input::placeholder { color: #6b7280; }
 
 .mobile-menu-btn {
     display: none;
-    width: 44px; height: 44px; min-width: 44px; min-height: 44px;
+    width: 48px; height: 48px; min-width: 48px; min-height: 48px;
     align-items: center; justify-content: center;
     background: rgba(255,255,255,0.15); border: none; border-radius: 10px;
-    color: white; font-size: 20px; cursor: pointer;
+    color: white; font-size: 22px; cursor: pointer;
     -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
 }
 .mobile-menu-btn:hover { background: rgba(255,255,255,0.25); color: white; }
 .mobile-menu-btn i { pointer-events: none; }
@@ -197,10 +198,12 @@ body.light-theme .arama-cubugu input::placeholder { color: #6b7280; }
     pointer-events: none;
     transition: opacity 0.3s ease, visibility 0.3s ease;
     -webkit-overflow-scrolling: touch;
+    -webkit-tap-highlight-color: transparent;
 }
 .mobile-menu-overlay.open {
     opacity: 1; visibility: visible;
     pointer-events: auto;
+    touch-action: pan-y;
 }
 .mobile-menu-drawer {
     position: fixed; left: 0; top: 0; bottom: 0;
@@ -1758,8 +1761,8 @@ body.light-theme select, body.light-theme textarea {
         min-height: 44px; min-width: 0; overflow: hidden; text-overflow: ellipsis;
     }
     #advanced-search-panel { padding: 12px; }
-    .modern-modal { padding: 8px; padding-top: max(8px, env(safe-area-inset-top)); align-items: stretch; }
-    .modal-content { padding: 20px 14px; margin: 10px 0 30px; border-radius: 16px; max-height: calc(100vh - 80px); overflow-y: auto; -webkit-overflow-scrolling: touch; }
+    .modern-modal { padding: 8px; padding-top: max(8px, env(safe-area-inset-top)); align-items: stretch; -webkit-overflow-scrolling: touch; overflow-y: auto; }
+    .modal-content { padding: 20px 14px; margin: 10px 0 30px; border-radius: 16px; max-height: calc(100vh - 80px); overflow-y: auto; -webkit-overflow-scrolling: touch; touch-action: pan-y; }
     .modal-title { font-size: 18px; margin-bottom: 18px; }
     .close-btn { right: 12px; top: 12px; width: 44px; height: 44px; font-size: 24px; }
     .login-modal-content, .payment-modal-content, .rating-modal-content { padding: 24px 14px; }

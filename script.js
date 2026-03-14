@@ -4499,9 +4499,9 @@ window.closePaymentModal = function () {
 };
 
 // ========== MODAL HELPERS ==========
-window.closeLoginModal = function () { var m = el('login-modal'); if (m) { m.style.display = 'none'; m.classList.remove('active'); } };
+window.closeLoginModal = function () { var m = el('login-modal'); if (m) { m.style.display = 'none'; m.classList.remove('active'); document.body.style.overflow = ''; } };
 window.closeSignupModal = function () { var m = el('signup-modal'); if (m) { m.style.display = 'none'; m.classList.remove('active'); } };
-window.openLoginModal = function () { var m = el('login-modal'); if (m) { m.style.display = 'flex'; m.classList.add('active'); } };
+window.openLoginModal = function () { var m = el('login-modal'); if (m) { m.style.display = 'flex'; m.classList.add('active'); document.body.style.overflow = 'hidden'; } };
 window.openTermsModal = function() {
     const m = el('terms-modal');
     const c = el('terms-content');
@@ -5653,8 +5653,14 @@ document.addEventListener('DOMContentLoaded', async function() {
     });
     el('searchInput')?.addEventListener('input', function() { renderPopularSearches(); });
     el('searchInput')?.addEventListener('focus', function() { renderPopularSearches(); });
-    el('searchBtn')?.addEventListener('click', function() { showListingPage(); applyFilters(); });
-    el('logo-home')?.addEventListener('click', function(e) { e.preventDefault(); showHomepage(); });
+    function addTouchClick(elId, fn) {
+        var elem = el(elId);
+        if (!elem) return;
+        elem.addEventListener('click', function(e) { e.preventDefault(); fn(); });
+        elem.addEventListener('touchend', function(e) { e.preventDefault(); fn(); }, { passive: false });
+    }
+    addTouchClick('searchBtn', function() { showListingPage(); applyFilters(); });
+    addTouchClick('logo-home', function() { showHomepage(); });
 
     function applyTheme(isDark) {
         document.body.classList.toggle('dark-theme', isDark);
@@ -5708,27 +5714,51 @@ document.addEventListener('DOMContentLoaded', async function() {
         var overlay = el('mobile-menu-overlay');
         if (overlay) { overlay.classList.remove('open'); overlay.setAttribute('aria-hidden', 'true'); document.body.style.overflow = ''; }
     }
-    el('mobile-menu-btn')?.addEventListener('click', openMobileMenu);
-    el('mobile-menu-close')?.addEventListener('click', closeMobileMenu);
-    el('mobile-menu-overlay')?.addEventListener('click', function(e) {
-        if (e.target === this) closeMobileMenu();
-    });
-    el('mobile-action-theme')?.addEventListener('click', function() {
+    function handleMobileMenuOpen(e) { e.preventDefault(); e.stopPropagation(); openMobileMenu(); }
+    function handleMobileMenuClose(e) { e.preventDefault(); e.stopPropagation(); closeMobileMenu(); }
+    var mobileMenuBtn = el('mobile-menu-btn');
+    var mobileMenuClose = el('mobile-menu-close');
+    var mobileOverlay = el('mobile-menu-overlay');
+    var mobileDrawer = el('mobile-menu-drawer');
+    if (mobileMenuBtn) {
+        mobileMenuBtn.addEventListener('click', handleMobileMenuOpen);
+        mobileMenuBtn.addEventListener('touchend', function(e) { e.preventDefault(); openMobileMenu(); }, { passive: false });
+    }
+    if (mobileMenuClose) {
+        mobileMenuClose.addEventListener('click', handleMobileMenuClose);
+        mobileMenuClose.addEventListener('touchend', function(e) { e.preventDefault(); closeMobileMenu(); }, { passive: false });
+    }
+    if (mobileOverlay) {
+        mobileOverlay.addEventListener('click', function(e) {
+            if (e.target === this) closeMobileMenu();
+        });
+    }
+    if (mobileDrawer) {
+        mobileDrawer.addEventListener('click', function(e) { e.stopPropagation(); });
+    }
+    function mobileTap(elId, fn) {
+        var elem = el(elId);
+        if (!elem) return;
+        function run(e) { e.preventDefault(); e.stopPropagation(); fn(); }
+        elem.addEventListener('click', run);
+        elem.addEventListener('touchend', function(e) { e.preventDefault(); fn(); }, { passive: false });
+    }
+    mobileTap('mobile-action-theme', function() {
         var isDark = document.body.classList.contains('dark-theme');
         applyTheme(!isDark);
     });
     el('mobile-action-theme')?.addEventListener('keydown', function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.click(); } });
-    el('mobile-action-support')?.addEventListener('click', function(e) { e.preventDefault(); closeMobileMenu(); window.openSupportModal?.(); });
-    el('mobile-action-ilan')?.addEventListener('click', function(e) { e.preventDefault(); closeMobileMenu(); if (!getCurrentUser()) { showToast('postAdRequired', 'warning', 2000); window.openLoginModal?.(); return; } el('ilan-modal').style.display = 'flex'; });
-    el('mobile-action-login')?.addEventListener('click', function(e) { e.preventDefault(); closeMobileMenu(); window.openLoginModal?.(); });
-    el('mobile-action-profile')?.addEventListener('click', function(e) { e.preventDefault(); closeMobileMenu(); window.openProfilePage?.(); });
-    el('mobile-action-admin')?.addEventListener('click', function(e) { e.preventDefault(); closeMobileMenu(); if (isAdmin()) window.openAdminPage?.(); });
-    el('mobile-action-logout')?.addEventListener('click', function(e) { e.preventDefault(); closeMobileMenu(); logout(); });
-    el('mobile-action-fav')?.addEventListener('click', function(e) { e.preventDefault(); closeMobileMenu(); window.openFavoritesPage?.(); });
-    el('mobile-action-messages')?.addEventListener('click', function(e) { e.preventDefault(); closeMobileMenu(); window.openMessagingModal?.(); });
-    el('mobile-action-notif')?.addEventListener('click', function(e) { e.preventDefault(); closeMobileMenu(); window.openMobileNotifModal?.(); });
-    el('mobile-notif-close')?.addEventListener('click', window.closeMobileNotifModal);
-    el('mobile-notif-modal')?.addEventListener('click', function(e) { if (e.target === this) window.closeMobileNotifModal?.(); });
+    mobileTap('mobile-action-support', function() { closeMobileMenu(); (window.openSupportModal || function(){})(); });
+    mobileTap('mobile-action-ilan', function() { closeMobileMenu(); if (!getCurrentUser()) { showToast(t('postAdRequired'), 'warning', 2000); (window.openLoginModal || function(){})(); return; } var m=el('ilan-modal'); if(m) m.style.display='flex'; });
+    mobileTap('mobile-action-login', function() { closeMobileMenu(); (window.openLoginModal || function(){})(); });
+    mobileTap('mobile-action-profile', function() { closeMobileMenu(); if (typeof openProfilePage==='function') openProfilePage(); else (window.openProfilePage||function(){})(); });
+    mobileTap('mobile-action-admin', function() { closeMobileMenu(); if (isAdmin()) (window.openAdminPage||function(){})(); });
+    mobileTap('mobile-action-logout', function() { closeMobileMenu(); if (typeof logout==='function') logout(); });
+    mobileTap('mobile-action-fav', function() { closeMobileMenu(); (window.openFavoritesPage||function(){})(); });
+    mobileTap('mobile-action-messages', function() { closeMobileMenu(); (window.openMessagingModal||function(){})(); });
+    mobileTap('mobile-action-notif', function() { closeMobileMenu(); (window.openMobileNotifModal||function(){})(); });
+    el('mobile-notif-close')?.addEventListener('click', function() { (window.closeMobileNotifModal || function(){})(); });
+    el('mobile-notif-modal')?.addEventListener('click', function(e) { if (e.target === this) (window.closeMobileNotifModal || function(){})(); });
     var mobileLang = el('mobile-lang-select');
     if (mobileLang) {
         mobileLang.value = window.currentLang;
@@ -5745,6 +5775,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             if (modal) {
                 modal.style.display = 'none';
                 modal.classList.remove('active');
+                if (modal.id === 'login-modal') document.body.style.overflow = '';
             }
         });
     });
