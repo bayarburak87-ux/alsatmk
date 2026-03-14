@@ -4,7 +4,24 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5">
     <meta name="theme-color" content="#6c5ce7">
+    <meta name="description" content="Alsat - Makedonya'nın en büyük ilan platformu. Araç, emlak, elektronik ve daha fazlası. Binlerce ilan arasında ücretsiz ara, sat ve al.">
+    <meta name="keywords" content="Makedonya ilan, ikinci el, araç, emlak, telefon, laptop, satılık, kiralık">
+    <meta name="author" content="Alsat">
+    <!-- Open Graph -->
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="Alsat">
+    <meta property="og:title" content="Alsat - Makedonya'nın İlan Platformu">
+    <meta property="og:description" content="Makedonya'nın en büyük ilan platformu. Binlerce ilan arasında ücretsiz ara.">
+    <meta property="og:image" content="https://images.unsplash.com/photo-1561070791-2526d30994b5?w=800">
+    <meta property="og:url" content="">
+    <meta property="og:locale" content="tr_TR">
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Alsat - Makedonya'nın İlan Platformu">
+    <meta name="twitter:description" content="Makedonya'nın en büyük ilan platformu. Binlerce ilan arasında ücretsiz ara.">
     <title>Alsat - Makedonya'nın İlan Platformu</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
@@ -20,14 +37,18 @@
     })();
     </script>
     <header class="ust-menu">
-        <button type="button" class="mobile-menu-btn" id="mobile-menu-btn" aria-label="Menüyü aç" title="Menü">
-            <i class="fa-solid fa-bars"></i>
+        <button type="button" class="mobile-menu-btn" id="mobile-menu-btn" aria-label="Menüyü aç" aria-expanded="false" aria-controls="mobile-menu-drawer">
+            <i class="fa-solid fa-bars" aria-hidden="true"></i>
         </button>
-        <div class="logo" onclick="location.reload()"><i class="fa-solid fa-cart-shopping"></i> Alsat</div>
+        <div class="logo" id="logo-home" title="Anasayfa"><i class="fa-solid fa-cart-shopping"></i> Alsat</div>
         
-        <div class="arama-cubugu">
-            <input type="text" id="searchInput" placeholder="Ne arıyorsun?">
-            <button id="searchBtn"><i class="fa-solid fa-magnifying-glass"></i></button>
+        <div class="arama-wrap">
+            <div class="arama-cubugu" role="search">
+                <label for="searchInput" class="sr-only">Arama</label>
+                <input type="search" id="searchInput" placeholder="Ne arıyorsun?" aria-label="Arama" autocomplete="off">
+                <button id="searchBtn" type="button" aria-label="Ara"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></button>
+            </div>
+            <div id="popular-searches" class="popular-searches" style="display:none;"></div>
         </div>
         
         <div class="kullanici-menusu">
@@ -78,15 +99,19 @@
                 <span id="profile-text">Profilim</span>
             </a>
 
-            <a href="#" class="header-btn" id="logout-button" style="display: none;">
+            <a href="#" class="header-btn" id="logout-button" style="display: none;" onclick="window.logout(); return false;">
                 <i class="fa-solid fa-sign-out"></i> 
                 <span id="logout-text">Çıkış</span>
             </a>
 
-            <a href="#" class="fav-count-container" onclick="window.openFavoritesPage(); return false;">
-                <i class="fa-solid fa-heart"></i>
-                <span id="fav-badge" class="badge">0</span>
-            </a>
+            <div class="fav-count-container" id="fav-container" style="position:relative;">
+                <a href="#" class="header-btn" id="fav-trigger"><i class="fa-solid fa-heart"></i><span id="fav-badge" class="badge">0</span></a>
+                <div id="fav-dropdown" class="fav-dropdown" style="display:none;">
+                    <div class="fav-dropdown-header" id="fav-dropdown-title">Favoriler</div>
+                    <div id="fav-dropdown-list" class="fav-dropdown-list"></div>
+                    <a href="#" class="fav-dropdown-footer" id="fav-dropdown-all"><span id="fav-dropdown-all-txt">Tümünü Gör</span> <i class="fa-solid fa-arrow-right"></i></a>
+                </div>
+            </div>
 
             <a href="#" class="header-btn" id="messages-button" style="display: none;" onclick="window.openMessagingModal(); return false;">
                 <i class="fa-solid fa-comment-dots"></i>
@@ -105,8 +130,8 @@
         </div>
     </header>
 
-    <div id="mobile-menu-overlay" class="mobile-menu-overlay" aria-hidden="true">
-        <div class="mobile-menu-drawer">
+    <div id="mobile-menu-overlay" class="mobile-menu-overlay" aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="mobile-menu-title">
+        <div class="mobile-menu-drawer" id="mobile-menu-drawer">
             <div class="mobile-menu-header">
                 <span id="mobile-menu-title">Menü</span>
                 <button type="button" class="mobile-menu-close" id="mobile-menu-close" aria-label="Menüyü kapat"><i class="fa-solid fa-times"></i></button>
@@ -120,6 +145,11 @@
                     <i class="fa-solid fa-coins"></i>
                     <span id="mobile-txt-currency">Döviz Kuru</span>
                     <div class="mobile-currency-rates" id="mobile-currency-rates"></div>
+                    <div class="mobile-currency-converter">
+                        <input type="number" id="mobile-currency-amount" placeholder="Miktar" value="1" min="0" step="0.01" aria-label="Dönüştürülecek miktar">
+                        <span class="mobile-currency-unit">EUR</span>
+                        <div class="mobile-currency-result" id="mobile-currency-result"></div>
+                    </div>
                 </div>
                 <a href="#" class="mobile-menu-item" id="mobile-action-support"><i class="fa-solid fa-headset"></i><span id="mobile-txt-destek">Destek</span></a>
                 <div class="mobile-menu-item mobile-lang-wrap">
@@ -135,6 +165,7 @@
                 <a href="#" class="mobile-menu-item" id="mobile-action-ilan"><i class="fa-solid fa-circle-plus"></i><span id="mobile-txt-ilan-ver">İlan Ver</span></a>
                 <a href="#" class="mobile-menu-item" id="mobile-action-login"><i class="fa-solid fa-user"></i><span id="mobile-txt-giris">Giriş</span></a>
                 <a href="#" class="mobile-menu-item mobile-menu-item-logged" id="mobile-action-profile" style="display:none"><i class="fa-solid fa-user-circle"></i><span id="mobile-profile-text">Profilim</span></a>
+                <a href="#" class="mobile-menu-item mobile-menu-item-admin" id="mobile-action-admin" style="display:none"><i class="fa-solid fa-shield-halved"></i><span id="mobile-txt-admin">Admin Panel</span></a>
                 <a href="#" class="mobile-menu-item mobile-menu-item-logged" id="mobile-action-logout" style="display:none"><i class="fa-solid fa-sign-out"></i><span id="mobile-logout-text">Çıkış</span></a>
                 <a href="#" class="mobile-menu-item" id="mobile-action-fav"><i class="fa-solid fa-heart"></i><span id="mobile-txt-fav">Favoriler</span><span class="mobile-badge" id="mobile-fav-badge">0</span></a>
                 <a href="#" class="mobile-menu-item mobile-menu-item-logged" id="mobile-action-messages" style="display:none"><i class="fa-solid fa-comment-dots"></i><span id="mobile-txt-msg">Mesajlar</span><span class="mobile-badge" id="mobile-msg-badge" style="display:none">0</span></a>
@@ -143,6 +174,56 @@
         </div>
     </div>
 
+    <!-- ANASAYFA (Pazar3 tarzı) -->
+    <section id="homepage-view" class="homepage-view">
+        <div class="homepage-inner">
+            <div class="homepage-left homepage-map-col">
+                <div class="homepage-map" id="homepage-map">
+                    <iframe title="Makedonya haritası" src="https://www.openstreetmap.org/export/embed.html?bbox=20.35%2C40.75%2C23.15%2C42.45&amp;layer=mapnik" class="homepage-map-iframe"></iframe>
+                </div>
+            </div>
+            <div class="homepage-right homepage-cats-regions-col">
+                <div class="homepage-top-block">
+                    <button type="button" class="homepage-post-ad-btn" id="homepage-ilan-ver">
+                        <i class="fa-solid fa-bullhorn"></i>
+                        <span id="homepage-txt-ilan-ver">İlan Ver!</span>
+                    </button>
+                    <p class="homepage-ad-count" id="homepage-ad-count">600.000+ ilan arasında ara</p>
+                </div>
+                <div class="homepage-cats-regions-wrap">
+                    <div class="homepage-category-grid" id="homepage-category-grid">
+                        <!-- Dinamik doldurulacak -->
+                    </div>
+                    <div class="homepage-regions" id="homepage-regions">
+                        <select id="homepage-regions-select-mobile" class="homepage-regions-select-mobile" aria-label="Bölge seçin">
+                            <option value="">Tüm Makedonya</option>
+                        </select>
+                        <div class="homepage-regions-links">
+                            <a href="#" class="region-link region-btn active" data-city="">Tüm Makedonya</a>
+                            <!-- Dinamik şehirler -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="homepage-alsat-store-banner" id="homepage-alsat-store-banner">
+            <div class="alsat-store-banner-inner">
+                <div class="alsat-store-banner-content">
+                    <span class="alsat-store-badge" id="alsat-store-badge">Alsat Store</span>
+                    <h3 id="homepage-stores-title">Profesyonel Mağazalar</h3>
+                    <p id="homepage-stores-desc">Kayıtlı mağazalar, ürünler, fotoğraflı yorumlar & soru-cevap</p>
+                </div>
+                <a href="javascript:void(0)" id="homepage-stores-btn" class="homepage-post-ad-btn alsat-store-cta" onclick="if(window.openStoresPage){window.openStoresPage();} return false;"><span id="homepage-stores-btn-txt">Alsat Store'a Git</span></a>
+            </div>
+        </div>
+        <div class="homepage-new-ads">
+            <h3><i class="fa-solid fa-sparkles"></i> <span id="homepage-new-ads-title">Son eklenen ilanlar</span></h3>
+            <div class="homepage-new-ads-grid" id="homepage-new-ads-grid"></div>
+        </div>
+    </section>
+
+    <!-- İLAN LİSTESİ (kategori seçildiğinde / arama yapıldığında) -->
+    <div id="listing-view" class="listing-view" style="display:none;">
     <section class="banner-container">
         <div class="banner hizli-satis" id="banner-hizli-satis" role="button" tabindex="0">
             <div class="banner-content">
@@ -162,6 +243,12 @@
                 <span class="indirim-tag" id="tag-indirim">% İndirim</span>
             </div>
         </div>
+        <div class="banner alsat-store" id="banner-alsat-store" role="button" tabindex="0" onclick="if(window.openStoresPage){window.openStoresPage();}">
+            <div class="banner-content">
+                <h2 id="banner-alsat-store-title"><i class="fa-solid fa-store"></i> Alsat Store</h2>
+                <p id="banner-alsat-store-desc">Profesyonel mağazalar, ürünler & değerlendirmeler</p>
+            </div>
+        </div>
     </section>
 
     <main class="ana-icerik">
@@ -177,8 +264,10 @@
 
         <div class="icerik-sarici">
             <div class="filtreler-ust" id="filtreler-ust">
+                <div class="filtre-toggle-mobile" id="filtre-toggle-mobile" role="button" tabindex="0"><i class="fa-solid fa-filter"></i> <span id="filtre-toggle-txt">Filtreler</span> <i class="fa-solid fa-chevron-down"></i></div>
+                <div class="filtre-panel-mobile">
                 <div class="filtre-satir">
-                    <div class="filtre-item">
+                    <div class="filtre-item filtre-lokasyon">
                         <label id="label-lokasyon"><i class="fa-solid fa-location-dot"></i></label>
                         <select id="sehir-select"><option value="">Tüm Makedonya</option></select>
                         <select id="ilce-select"><option value="">İlçe Seç</option></select>
@@ -201,6 +290,7 @@
                     </div>
                     <button class="filtre-uygula-btn" id="btn-uygula"><i class="fa-solid fa-filter"></i> Uygula</button>
                     <button id="btn-temizle" class="temizle-link">Temizle</button>
+                    <button id="btn-search-alert" class="temizle-link" style="margin-left:4px;" title="Yeni ilan eklendiğinde bildirim al"><i class="fa-solid fa-bell"></i> <span id="txt-search-alert">Bildirim Al</span></button>
                     <button id="btn-advanced-search" class="temizle-link" style="margin-left:4px;"><i class="fa-solid fa-magnifying-glass-plus"></i> <span id="txt-advanced">Gelişmiş</span></button>
                     <div id="advanced-search-panel" style="display:none;width:100%;flex-basis:100%;margin-top:12px;padding:12px;background:var(--card-bg);border-radius:12px;border:1px solid var(--border-color);">
                         <div style="display:flex;flex-wrap:wrap;gap:12px;align-items:center;">
@@ -221,15 +311,52 @@
                         <option value="">Kayıtlı Filtreler</option>
                     </select>
                 </div>
+                <div id="category-extra-filters" class="category-extra-filters" style="display:none;">
+                    <div id="otomobil-filters" class="cat-filter-block" style="display:none;">
+                        <div class="cat-filter-row">
+                            <select id="lf-marka"><option value="">Marka</option></select>
+                            <select id="lf-model"><option value="">Model</option></select>
+                            <select id="lf-yil"><option value="">Yıl</option></select>
+                            <input type="number" id="lf-fiyat-min" placeholder="Min EUR">
+                            <input type="number" id="lf-fiyat-max" placeholder="Max EUR">
+                            <select id="lf-yakit"><option value="">Yakıt</option><option value="Benzin">Benzin</option><option value="Dizel">Dizel</option><option value="LPG">LPG</option><option value="Elektrik">Elektrik</option><option value="Hibrit">Hibrit</option></select>
+                            <select id="lf-vites"><option value="">Vites</option><option value="Manuel">Manuel</option><option value="Otomatik">Otomatik</option></select>
+                            <button type="button" class="filtre-uygula-btn" id="btn-uygula-oto"><i class="fa-solid fa-magnifying-glass"></i> Ara</button>
+                        </div>
+                    </div>
+                    <div id="konut-filters" class="cat-filter-block" style="display:none;">
+                        <div class="cat-filter-row">
+                            <select id="lf-konut-tip"><option value="">İlan Tipi</option><option value="Satılık Daire">Satılık Daire</option><option value="Kiralık Daire">Kiralık Daire</option><option value="Satılık Arsa">Satılık Arsa</option><option value="Kiralık Ev">Kiralık Ev</option></select>
+                            <select id="lf-oda"><option value="">Oda</option><option value="1+0">1+0</option><option value="1+1">1+1</option><option value="2+1">2+1</option><option value="3+1">3+1</option><option value="4+1">4+1</option></select>
+                            <input type="number" id="lf-m2" placeholder="Min m²">
+                            <button type="button" class="filtre-uygula-btn" id="btn-uygula-konut"><i class="fa-solid fa-magnifying-glass"></i> Ara</button>
+                        </div>
+                    </div>
+                    <div id="is-ilanlari-filters" class="cat-filter-block" style="display:none;">
+                        <div class="cat-filter-row">
+                            <select id="lf-job-type"><option value="">Çalışma Şekli</option><option value="Tam Zamanlı">Tam Zamanlı</option><option value="Yarı Zamanlı">Yarı Zamanlı</option><option value="Staj">Staj</option><option value="Freelance">Freelance</option><option value="Uzaktan">Uzaktan</option><option value="Hibrit">Hibrit</option></select>
+                            <select id="lf-job-exp"><option value="">Deneyim</option><option value="Deneyimsiz">Deneyimsiz</option><option value="1-2 yıl">1-2 yıl</option><option value="3-5 yıl">3-5 yıl</option><option value="5+ yıl">5+ yıl</option></select>
+                            <input type="text" id="lf-job-company" placeholder="Şirket adı">
+                            <input type="number" id="lf-job-salary-min" placeholder="Min maaş EUR">
+                            <button type="button" class="filtre-uygula-btn" id="btn-uygula-is"><i class="fa-solid fa-magnifying-glass"></i> Ara</button>
+                        </div>
+                    </div>
+                </div>
+                </div>
             </div>
 
             <section class="ilan-bolumu">
+                <nav class="breadcrumb" id="breadcrumb" aria-label="Breadcrumb"></nav>
+                <div id="filter-chips" class="filter-chips"></div>
                 <div id="recently-viewed-section" class="recently-viewed-section" style="display:none;margin-bottom:24px;">
                     <h3 style="margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;"><span><i class="fa-solid fa-clock-rotate-left"></i> <span id="label-recently-viewed">Son Görüntülenenler</span></span><button type="button" class="temizle-link" id="btn-clear-recently" title="Tümünü sil"><i class="fa-solid fa-trash-can"></i> Temizle</button></h3>
-                    <div id="recently-viewed-grid" class="recently-viewed-grid"></div>
+                    <div class="section-inner">
+                        <div id="recently-viewed-grid" class="recently-viewed-grid"></div>
+                    </div>
                 </div>
                 <div class="section-header">
-                    <h2 id="label-populer">Popüler İlanlar</h2>
+                    <h2 id="label-populer">Popüler İlanlar <span id="filter-result-count" class="filter-result-count"></span></h2>
+                    <button type="button" id="btn-map-view" class="filtre-uygula-btn" title="Haritada gör" style="margin-right:8px;"><i class="fa-solid fa-map-location-dot"></i> Harita</button>
                     <select id="sort-select" class="sort-select">
                         <option value="newest" id="opt-sort-newest">En Yeni</option>
                         <option value="price-asc" id="opt-sort-price-asc">Fiyat (Düşük → Yüksek)</option>
@@ -237,12 +364,17 @@
                         <option value="views" id="opt-sort-views">En Çok Görüntülenen</option>
                     </select>
                 </div>
+                <div id="listing-map-container" class="listing-map-container" style="display:none;height:400px;border-radius:12px;overflow:hidden;border:1px solid var(--border-color);margin-bottom:20px;"></div>
                 <div class="ilan-grid" id="ilan-grid"></div>
                 <div id="ilan-pagination" class="ilan-pagination"></div>
             </section>
         </div>
     </main>
+    <button type="button" class="filtre-float-mobile" id="filtre-float-mobile" aria-label="Filtreler" style="display:none;"><i class="fa-solid fa-filter"></i> <span>Filtreler</span></button>
+    </div>
 
+    <button type="button" id="back-to-top" class="back-to-top" aria-label="Yukarı çık"><i class="fa-solid fa-chevron-up"></i></button>
+    <div id="compare-bar" class="compare-bar"><span class="compare-bar-text"></span><button type="button" class="compare-bar-btn" id="compare-bar-btn">Karşılaştır</button><button type="button" class="compare-bar-clear">×</button></div>
     <footer class="footer-info">
         <div class="info-card">
             <i class="fa-solid fa-bell"></i>
@@ -267,7 +399,7 @@
     </footer>
 
     <!-- İLAN OLUŞTURMA MODAL -->
-    <div id="ilan-modal" class="modern-modal">
+    <div id="ilan-modal" class="modern-modal" role="dialog" aria-modal="true" aria-labelledby="modal-baslik">
         <div class="modal-content">
             <span class="close-btn" onclick="closeModal()">&times;</span>
             <h2 id="modal-baslik" class="modal-title">Yeni İlan Oluştur</h2>
@@ -311,6 +443,9 @@
                                     <option value="Sahibinden">Sahibinden</option>
                                     <option value="Mağaza">Mağaza</option>
                                 </select>
+                            </div>
+                            <div class="input-group">
+                                <label class="inline-check" style="margin-top:28px;"><input type="checkbox" id="ilan-takas"> Takas kabul edilir</label>
                             </div>
                         </div>
                         <div class="input-group">
@@ -429,7 +564,7 @@
     </div>
 
     <!-- GİRİŞ MODAL -->
-    <div id="login-modal" class="modern-modal">
+    <div id="login-modal" class="modern-modal" role="dialog" aria-modal="true" aria-labelledby="login-baslik">
         <div class="modal-content login-modal-content">
             <span class="close-btn" onclick="window.closeLoginModal()">&times;</span>
             <h2 id="login-baslik" class="modal-title">Güvenli Giriş</h2>
@@ -479,7 +614,7 @@
     </div>
 
     <!-- KAYIT MODAL -->
-    <div id="signup-modal" class="modern-modal">
+    <div id="signup-modal" class="modern-modal" role="dialog" aria-modal="true" aria-labelledby="signup-baslik">
         <div class="modal-content login-modal-content">
             <span class="close-btn" onclick="window.closeSignupModal()">&times;</span>
             <h2 id="signup-baslik" class="modal-title">Üye Ol</h2>
@@ -684,6 +819,10 @@
                         <input type="checkbox" id="notify-favorites" checked>
                         <span>Favori ilanlar bildirim</span>
                     </label>
+                    <label class="toggle-item">
+                        <input type="checkbox" id="show-recently-viewed" checked>
+                        <span>Son görüntülenenler bölümünü göster</span>
+                    </label>
                     <button class="profile-save-btn" id="save-notifications-btn">Kaydet</button>
                 </div>
 
@@ -769,6 +908,23 @@
         </div>
     </div>
 
+    <!-- SEPET SAYFASI (Alsat Store) -->
+    <div id="cart-page" class="profile-page-container" style="display: none;">
+        <div class="profile-page-header">
+            <button class="back-btn" id="back-cart-btn"><i class="fa-solid fa-arrow-left"></i> <span id="cart-back-txt">Geri</span></button>
+            <h1><i class="fa-solid fa-cart-shopping"></i> <span id="cart-page-title">Sepetim</span></h1>
+            <div class="header-spacer"></div>
+        </div>
+        <div id="cart-content" style="padding:20px 4%;max-width:800px;margin:0 auto;">
+            <p id="cart-empty" style="text-align:center;padding:40px;color:var(--text-muted);">Sepetiniz boş</p>
+            <div id="cart-items" style="display:none;"></div>
+            <div id="cart-summary" style="margin-top:20px;display:none;padding:16px;background:var(--card-bg);border-radius:12px;border:1px solid var(--border-color);">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;"><span>Toplam:</span><strong id="cart-total">0 EUR</strong></div>
+                <button type="button" class="modern-submit-btn" id="cart-checkout-btn" style="width:100%;"><i class="fa-solid fa-credit-card"></i> Ödemeye Geç</button>
+            </div>
+        </div>
+    </div>
+
     <!-- FAVORILERIM SAYFASI -->
     <div id="favorites-page" class="profile-page-container" style="display: none;">
         <div class="profile-page-header">
@@ -799,6 +955,450 @@
         </div>
     </div>
 
+    <!-- ALSAT STORE SAYFASI (Trendyol tarzı) -->
+    <div id="stores-page" class="profile-page-container alsat-store-page trendyol-style" style="display: none;">
+        <div class="alsat-store-topbar">
+            <button class="back-btn" id="back-stores-btn"><i class="fa-solid fa-arrow-left"></i> <span id="stores-back-txt">Geri</span></button>
+            <h1 class="alsat-store-logo"><i class="fa-solid fa-cart-shopping"></i> <span id="stores-page-title">Alsat Store</span></h1>
+            <div class="alsat-store-search-wrap">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" id="alsat-store-search" placeholder="Ürün, kategori veya marka ara" aria-label="Arama">
+            </div>
+            <div class="alsat-store-actions">
+                <a href="#" class="alsat-action-link alsat-seller-link" id="alsat-seller-link"><i class="fa-solid fa-store"></i> <span id="alsat-seller-txt">Satıcı Ol</span></a>
+                <a href="#" class="alsat-action-link" id="alsat-login-link"><i class="fa-solid fa-user"></i> <span id="alsat-login-txt">Giriş Yap</span></a>
+                <a href="#" class="alsat-action-link" id="alsat-profile-link"><i class="fa-solid fa-user-circle"></i> <span id="alsat-profile-txt">Profilim</span></a>
+                <a href="#" class="alsat-action-link" id="alsat-cart-link"><i class="fa-solid fa-cart-shopping"></i> <span id="alsat-cart-txt">Sepetim</span><span class="alsat-cart-badge" id="alsat-cart-badge" style="display:none;">0</span></a>
+            </div>
+        </div>
+        <nav class="alsat-store-nav">
+            <button type="button" class="alsat-nav-item" data-nav="categories"><i class="fa-solid fa-bars"></i> <span id="nav-kategoriler">Kategoriler</span> <span class="nav-badge">Yeni</span></button>
+            <button type="button" class="alsat-nav-item" data-cat="kadin"><span id="nav-cat-kadin">Kadın</span></button>
+            <button type="button" class="alsat-nav-item" data-cat="erkek"><span id="nav-cat-erkek">Erkek</span></button>
+            <button type="button" class="alsat-nav-item" data-cat="anne-cocuk"><span id="nav-cat-anne">Anne & Çocuk</span></button>
+            <button type="button" class="alsat-nav-item" data-cat="ev-yasam"><span id="nav-cat-ev">Ev & Yaşam</span></button>
+            <button type="button" class="alsat-nav-item" data-cat="supermarket"><span id="nav-cat-super">Süpermarket</span></button>
+            <button type="button" class="alsat-nav-item" data-cat="kozmetik"><span id="nav-cat-kozmetik">Kozmetik</span></button>
+            <button type="button" class="alsat-nav-item" data-cat="ayakkabi-canta"><span id="nav-cat-ayakkabi">Ayakkabı & Çanta</span></button>
+            <button type="button" class="alsat-nav-item" data-cat="elektronik"><span id="nav-cat-elektronik">Elektronik</span></button>
+            <button type="button" class="alsat-nav-item" data-cat="saat-aksesuar"><span id="nav-cat-saat">Saat & Aksesuar</span></button>
+            <button type="button" class="alsat-nav-item" data-cat="spor"><span id="nav-cat-spor">Spor & Outdoor</span></button>
+            <button type="button" class="alsat-nav-item" data-nav="flash"><span id="nav-flash">Flaş Ürünler</span> <span class="nav-badge">Yeni</span></button>
+            <button type="button" class="alsat-nav-item" data-nav="bestsellers"><span id="nav-bestsellers">Çok Satanlar</span> <span class="nav-badge">Yeni</span></button>
+        </nav>
+        <div class="alsat-discount-banners">
+            <a href="#" class="discount-banner" id="discount-banner-5" data-min="5" style="background:#f5e6e6;">%5 ve üzeri indirim</a>
+            <a href="#" class="discount-banner" id="discount-banner-10" data-min="10" style="background:#e6f5e9;">%10 ve üzeri indirim</a>
+            <a href="#" class="discount-banner" id="discount-banner-30" data-min="30" style="background:#e3f2fd;">%30 ve üzeri indirim</a>
+            <a href="#" class="discount-banner" id="discount-banner-50" data-min="50" style="background:#fce4ec;">%50 ve üzeri indirim</a>
+        </div>
+        <div class="alsat-main-with-filters" id="alsat-main-with-filters">
+            <button type="button" class="alsat-filter-toggle-mobile" id="alsat-filter-toggle-mobile" aria-label="Filtreleri aç"><i class="fa-solid fa-filter"></i> <span id="alsat-filter-toggle-txt">Filtreler</span></button>
+            <div class="alsat-filter-overlay" id="alsat-filter-overlay" aria-hidden="true"></div>
+            <aside class="alsat-filter-sidebar" id="alsat-filter-sidebar">
+                <button type="button" class="alsat-filter-close-btn" id="alsat-filter-close-btn" aria-label="Filtreleri kapat"><i class="fa-solid fa-times"></i></button>
+                <div class="alsat-filter-section" data-filter-section="category">
+                    <div class="alsat-filter-header" role="button" tabindex="0" aria-expanded="true">
+                        <span id="filter-category-label">Kategori</span>
+                        <i class="fa-solid fa-chevron-down alsat-filter-arrow"></i>
+                    </div>
+                    <div class="alsat-filter-body">
+                        <input type="text" class="alsat-filter-search" id="filter-category-search" placeholder="Kategori Ara" aria-label="Kategori Ara">
+                        <div class="alsat-filter-checkbox-list" id="filter-category-list"></div>
+                    </div>
+                </div>
+                <div class="alsat-filter-section" data-filter-section="brand">
+                    <div class="alsat-filter-header" role="button" tabindex="0" aria-expanded="true">
+                        <span id="filter-brand-label">Marka</span>
+                        <i class="fa-solid fa-chevron-down alsat-filter-arrow"></i>
+                    </div>
+                    <div class="alsat-filter-body">
+                        <input type="text" class="alsat-filter-search" id="filter-brand-search" placeholder="Marka Ara" aria-label="Marka Ara">
+                        <div class="alsat-filter-checkbox-list" id="filter-brand-list"></div>
+                    </div>
+                </div>
+                <div class="alsat-filter-section" data-filter-section="indirim">
+                    <div class="alsat-filter-header" role="button" tabindex="0" aria-expanded="true">
+                        <span>İndirim Oranı</span>
+                        <i class="fa-solid fa-chevron-down alsat-filter-arrow"></i>
+                    </div>
+                    <div class="alsat-filter-body">
+                        <label class="alsat-filter-check"><input type="checkbox" id="filter-disc-5" value="5"> <span>%5+</span></label>
+                        <label class="alsat-filter-check"><input type="checkbox" id="filter-disc-10" value="10"> <span>%10+</span></label>
+                        <label class="alsat-filter-check"><input type="checkbox" id="filter-disc-30" value="30"> <span>%30+</span></label>
+                        <label class="alsat-filter-check"><input type="checkbox" id="filter-disc-50" value="50"> <span>%50+</span></label>
+                    </div>
+                </div>
+                <button type="button" class="alsat-filter-clear" id="alsat-filter-clear-btn"><i class="fa-solid fa-rotate-left"></i> Filtreleri Temizle</button>
+            </aside>
+            <div class="alsat-content-area">
+        <section class="alsat-section">
+            <div class="alsat-section-header">
+                <h2 id="populer-urunler-title">Popüler Ürünler</h2>
+                <button type="button" class="alsat-view-all" id="alsat-view-all-products">Tümünü Gör</button>
+            </div>
+            <div id="alsat-popular-products" class="alsat-product-scroll"></div>
+        </section>
+        <section class="alsat-section">
+            <h2 id="kategori-indirim-title">Kategorilerdeki İndirimleri Keşfet</h2>
+            <div id="alsat-category-grid" class="alsat-category-grid"></div>
+        </section>
+        <section class="alsat-section">
+            <h2 id="kampanya-title">Kampanyalar</h2>
+            <div id="alsat-campaign-grid" class="alsat-campaign-grid"></div>
+        </section>
+        <section class="alsat-section">
+            <div class="alsat-section-header alsat-products-header">
+                <h2 id="tum-urunler-title">Tüm Ürünler</h2>
+                <div class="alsat-quick-filters">
+                    <button type="button" class="alsat-quick-filter active" data-quick="recommended"><i class="fa-solid fa-star"></i> <span id="quick-high-rated">Yüksek Puanlı</span></button>
+                    <button type="button" class="alsat-quick-filter" data-quick="freeship"><i class="fa-solid fa-truck"></i> <span id="quick-freeship">Kargo Bedava</span></button>
+                    <button type="button" class="alsat-quick-filter" data-quick="discount"><i class="fa-solid fa-tag"></i> <span id="quick-discount">Çok Al Az Öde</span></button>
+                    <button type="button" class="alsat-quick-filter" data-quick="new"><i class="fa-solid fa-sparkles"></i> <span id="quick-new">Yeni Ürünler</span></button>
+                </div>
+                <div class="alsat-sort-wrap">
+                    <label for="alsat-sort-select" class="alsat-sort-label"><span id="sort-label-txt">Sıralama:</span></label>
+                    <select id="alsat-sort-select" class="alsat-sort-select">
+                        <option value="recommended" id="sort-recommended">Önerilen</option>
+                        <option value="price-asc" id="sort-price-asc">Fiyat (Düşük-Yüksek)</option>
+                        <option value="price-desc" id="sort-price-desc">Fiyat (Yüksek-Düşük)</option>
+                        <option value="rating" id="sort-rating">Puana Göre</option>
+                        <option value="newest" id="sort-newest">En Yeni</option>
+                    </select>
+                </div>
+            </div>
+            <div id="alsat-products-count" class="alsat-products-count"></div>
+            <div id="alsat-all-products" class="alsat-product-grid"></div>
+        </section>
+            </div>
+        </div>
+    </div>
+
+    <!-- ÜRÜN DETAY SAYFASI (Trendyol tarzı) -->
+    <div id="product-detail-page" class="profile-page-container product-detail-page" style="display: none;">
+        <div class="product-detail-header">
+            <button class="back-btn" id="back-product-detail-btn"><i class="fa-solid fa-arrow-left"></i> <span id="product-detail-back-txt">Geri</span></button>
+            <div class="product-detail-breadcrumb" id="product-detail-breadcrumb"></div>
+        </div>
+        <div class="product-detail-content">
+            <div class="product-detail-gallery">
+                <div class="product-detail-badges" id="product-detail-badges"></div>
+                <div class="product-detail-main-img" id="product-detail-main-img"></div>
+                <div class="product-detail-thumbs" id="product-detail-thumbs"></div>
+            </div>
+            <div class="product-detail-info">
+                <h1 class="product-detail-title" id="product-detail-title"></h1>
+                <div class="product-detail-meta"><span id="product-detail-rating"></span> <span id="product-detail-reviews"></span> <span id="product-detail-views"></span></div>
+                <div class="product-detail-price-wrap">
+                    <span class="product-detail-original" id="product-detail-original"></span>
+                    <span class="product-detail-price" id="product-detail-price"></span>
+                    <span class="product-detail-discount" id="product-detail-discount"></span>
+                </div>
+                <div class="product-detail-specs" id="product-detail-specs"></div>
+                <div class="product-detail-colors" id="product-detail-colors"></div>
+                <div class="product-detail-sizes" id="product-detail-sizes"></div>
+                <div class="product-detail-actions">
+                    <button type="button" class="product-detail-add-cart" id="product-detail-add-cart"><i class="fa-solid fa-cart-plus"></i> <span id="product-add-cart-txt">Sepete Ekle</span></button>
+                    <button type="button" class="product-detail-buy-now" id="product-detail-buy-now"><i class="fa-solid fa-bolt"></i> <span id="product-buy-now-txt">Şimdi Al</span></button>
+                    <button type="button" class="product-detail-fav-btn" id="product-detail-fav-btn"><i class="fa-regular fa-heart"></i></button>
+                </div>
+                <div class="product-detail-seller">
+                    <span id="product-detail-seller-label">Satıcı:</span> <a href="#" id="product-detail-seller-link"></a>
+                </div>
+                <div class="product-detail-shipping"><i class="fa-solid fa-truck"></i> <span id="product-detail-shipping-txt"></span></div>
+            </div>
+        </div>
+        <div class="product-detail-attributes" id="product-detail-attributes"></div>
+        <div id="product-detail-qa" class="product-detail-qa" style="margin-top:24px;padding:20px;background:var(--card-bg);border-radius:12px;border:1px solid var(--border-color);">
+            <h4 style="margin:0 0 12px;"><i class="fa-solid fa-circle-question"></i> <span id="product-qa-title">Satıcıya Soru Sor</span></h4>
+            <div id="product-qa-list" class="store-qa-list" style="margin-bottom:16px;"></div>
+            <form id="product-qa-form" style="display:none;">
+                <input type="hidden" id="product-qa-product-id">
+                <textarea id="product-qa-question" placeholder="Bu ürün hakkında sorunuz..." maxlength="500" required style="width:100%;min-height:70px;padding:12px;border:1px solid var(--border-color);border-radius:8px;margin-bottom:10px;resize:vertical;background:var(--bg);color:var(--text-main);"></textarea>
+                <button type="submit" class="modern-submit-btn"><i class="fa-solid fa-paper-plane"></i> Gönder</button>
+            </form>
+        </div>
+        <div class="product-detail-similar" id="product-detail-similar">
+            <h3 id="product-similar-title">Benzer Ürünler</h3>
+            <div class="product-similar-grid" id="product-similar-grid"></div>
+        </div>
+    </div>
+
+    <!-- SATICI BAŞVURU SAYFASI (Trendyol tarzı) -->
+    <div id="seller-application-page" class="profile-page-container seller-application-page" style="display: none;">
+        <div class="seller-app-header">
+            <div class="seller-app-header-left">
+                <span class="seller-app-logo"><i class="fa-solid fa-cart-shopping"></i> Alsat Store</span>
+                <span class="seller-app-title">Satıcı Başvuru Formu</span>
+            </div>
+            <div class="seller-app-header-right">
+                <a href="#" class="seller-app-link" id="seller-info-center"><i class="fa-solid fa-external-link-alt"></i> Satıcı Bilgi Merkezi</a>
+                <a href="#" class="seller-app-link seller-app-how" id="seller-how-apply"><i class="fa-solid fa-graduation-cap"></i> Nasıl Başvuru Yapılır?</a>
+            </div>
+        </div>
+        <div class="seller-app-nav">
+            <button type="button" class="back-btn" id="seller-app-back"><i class="fa-solid fa-arrow-left"></i> Satıcı Başvuru Formu</button>
+        </div>
+        <div class="seller-app-content">
+            <div class="seller-app-form-section">
+                <h2 class="seller-form-title"><i class="fa-solid fa-bag-shopping"></i> Alsat Pazaryeri</h2>
+                <form id="seller-application-form">
+                    <div class="seller-form-grid">
+                        <div class="seller-form-col">
+                            <div class="input-group"><label>ŞİRKET İSMİ</label><input type="text" id="seller-company" required placeholder="Şirket İsmi"></div>
+                            <div class="input-group"><label>E-POSTA ADRESİNİZ <i class="fa-solid fa-circle-info" title="Bilgi"></i></label><input type="email" id="seller-email" required placeholder="E-Posta Adresi"></div>
+                            <div class="input-group"><label>ŞİRKET TÜRÜ <i class="fa-solid fa-circle-info"></i></label><select id="seller-company-type" required><option value="">Seçim yapınız</option><option value="sahis">Şahıs</option><option value="kurumsal">Kurumsal</option></select></div>
+                            <div class="input-group"><label>ŞİRKET TÜRÜ (Alt)</label><select id="seller-company-sub"><option value="">Seçim yapınız</option><option value="limited">Limited</option><option value="anonim">Anonim</option></select></div>
+                            <div class="input-group"><label>REFERANS KODU (ZORUNLU DEĞİL)</label><input type="text" id="seller-ref" placeholder="Varsa Referans Kodu Giriniz..."></div>
+                        </div>
+                        <div class="seller-form-col">
+                            <div class="input-group"><label>CEP TELEFONUNUZ <i class="fa-solid fa-circle-info"></i></label><input type="tel" id="seller-phone" required placeholder="+389 7X XXX XXX"></div>
+                            <div class="input-group seller-category-wrap"><label>SATILACAK ÜRÜN KATEGORİSİ <span class="required-star">*</span></label>
+                                <div class="seller-category-select" id="seller-category-trigger">
+                                    <span class="seller-category-value" id="seller-category-display">Kategori seçiniz</span>
+                                    <i class="fa-solid fa-chevron-down"></i>
+                                </div>
+                                <select id="seller-category" required style="position:absolute;opacity:0;pointer-events:none;height:0;">
+                                    <option value="">Seçiniz</option>
+                                    <option value="kadin">Kadın</option>
+                                    <option value="erkek">Erkek</option>
+                                    <option value="anne-cocuk">Anne & Çocuk</option>
+                                    <option value="ev-yasam">Ev & Yaşam</option>
+                                    <option value="supermarket">Süpermarket</option>
+                                    <option value="kozmetik">Kozmetik</option>
+                                    <option value="ayakkabi-canta">Ayakkabı & Çanta</option>
+                                    <option value="elektronik">Elektronik</option>
+                                    <option value="saat-aksesuar">Saat & Aksesuar</option>
+                                    <option value="spor">Spor & Outdoor</option>
+                                </select>
+                                <div class="seller-category-dropdown" id="seller-category-dropdown" style="display:none;">
+                                    <div class="seller-cat-opt" data-val="kadin">Kadın</div>
+                                    <div class="seller-cat-opt" data-val="erkek">Erkek</div>
+                                    <div class="seller-cat-opt" data-val="anne-cocuk">Anne & Çocuk</div>
+                                    <div class="seller-cat-opt" data-val="ev-yasam">Ev & Yaşam</div>
+                                    <div class="seller-cat-opt" data-val="supermarket">Süpermarket</div>
+                                    <div class="seller-cat-opt" data-val="kozmetik">Kozmetik</div>
+                                    <div class="seller-cat-opt" data-val="ayakkabi-canta">Ayakkabı & Çanta</div>
+                                    <div class="seller-cat-opt" data-val="elektronik">Elektronik</div>
+                                    <div class="seller-cat-opt" data-val="saat-aksesuar">Saat & Aksesuar</div>
+                                    <div class="seller-cat-opt" data-val="spor">Spor & Outdoor</div>
+                                </div>
+                                <p class="seller-field-error" id="seller-category-error">Kategori bilgisi zorunlu bir alandır</p>
+                            </div>
+                            <div class="input-group"><label>VERGİ KİMLİK NUMARANIZ</label><input type="text" id="seller-tax-id" placeholder="Vergi Kimlik No"></div>
+                            <div class="input-group"><label>İLÇE</label><select id="seller-district"><option value="">Seçim yapınız</option></select></div>
+                        </div>
+                    </div>
+                    <label class="checkbox-label"><input type="checkbox" id="seller-terms" required> <span id="seller-terms-txt">Aydınlatma metnini okudum ve anladım.</span> <a href="#" class="seller-terms-link">Aydınlatma metnini</a></label>
+                    <button type="submit" class="seller-submit-btn"><span id="seller-submit-txt">DEVAM ET</span></button>
+                </form>
+            </div>
+            <div class="seller-app-sidebar">
+                <div class="seller-promo-card seller-promo-purple">
+                    <i class="fa-solid fa-percent"></i>
+                    <p>Başvuru sonrası ilk 15 günde ürün yükleyin, 60 gün boyunca özel komisyon oranlarından faydalanın!</p>
+                </div>
+                <div class="seller-promo-card">
+                    <i class="fa-solid fa-credit-card"></i>
+                    <p>Alsat'ın satıcılarına sağladığı özel uygulamaları görmek için tıklayın.</p>
+                    <button type="button" class="seller-promo-btn">Hemen İncele</button>
+                </div>
+                <div class="seller-promo-card">
+                    <i class="fa-solid fa-file-lines"></i>
+                    <p>Nasıl vergi mükellefi olacağınızı öğrenmek için tıklayın.</p>
+                    <button type="button" class="seller-promo-btn">Hemen İncele</button>
+                </div>
+                <div class="seller-app-download">
+                    <p>QR Kod ile Uygulamayı İndirebilirsiniz!</p>
+                    <div class="seller-qr-placeholder">QR</div>
+                </div>
+            </div>
+        </div>
+        <div class="seller-app-footer">
+            <span>Made with ❤️</span>
+            <span>©2026 Alsat. Her hakkı saklıdır.</span>
+            <span>SATICI DESTEK: 0 850 XXX XX XX</span>
+        </div>
+    </div>
+
+    <!-- MAĞAZA DETAY SAYFASI (Trendyol tarzı) -->
+    <div id="store-detail-page" class="profile-page-container" style="display: none;">
+        <div class="profile-page-header">
+            <button class="back-btn" id="back-store-detail-btn"><i class="fa-solid fa-arrow-left"></i> <span id="store-detail-back-txt">Geri</span></button>
+            <h1 id="store-detail-title" style="font-size:1.1rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%;"></h1>
+            <div class="header-spacer"></div>
+        </div>
+        <div class="store-detail-content" style="padding:0 4% 40px;">
+            <div class="store-detail-header" style="position:relative;margin:-20px -4% 24px;padding:100px 4% 24px;background:linear-gradient(180deg,var(--card-bg) 0%,var(--bg) 100%);border-radius:0 0 24px 24px;">
+                <div class="store-cover" id="store-detail-cover" style="position:absolute;inset:0;background-size:cover;background-position:center;opacity:0.25;border-radius:0 0 24px 24px;"></div>
+                <input type="file" id="store-photo-file-input" accept="image/*" style="display:none;">
+                <div id="store-owner-photo-btns" style="position:relative;display:none;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
+                    <button type="button" class="admin-btn-small store-change-cover-btn" id="store-change-cover-btn"><i class="fa-solid fa-image"></i> Kapak Değiştir</button>
+                    <button type="button" class="admin-btn-small store-change-logo-btn" id="store-change-logo-btn"><i class="fa-solid fa-user"></i> Logo Değiştir</button>
+                </div>
+                <div id="store-owner-edit" style="display:none;position:relative;background:var(--card-bg);border:1px solid var(--border-color);border-radius:16px;padding:20px;margin-bottom:20px;">
+                    <h4 style="margin:0 0 16px;"><i class="fa-solid fa-pen"></i> Mağazamı Düzenle</h4>
+                    <div class="input-group" style="margin-bottom:12px;"><label>Mağaza Adı</label><input type="text" id="store-owner-edit-name" placeholder="Mağaza adı"></div>
+                    <div class="input-group" style="margin-bottom:12px;"><label>Telefon</label><input type="tel" id="store-owner-edit-phone" placeholder="+389..."></div>
+                    <div class="input-group" style="margin-bottom:12px;"><label>Şehir</label><select id="store-owner-edit-city"></select></div>
+                    <div class="input-group" style="margin-bottom:12px;"><label>Adres</label><input type="text" id="store-owner-edit-address" placeholder="Adres"></div>
+                    <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">Kapak ve logo değişikliği admin onayından geçer.</p>
+                    <button type="button" class="admin-btn" id="store-owner-save-btn"><i class="fa-solid fa-save"></i> Kaydet</button>
+                </div>
+                <div id="store-admin-edit" style="display:none;position:relative;background:var(--card-bg);border:1px solid var(--border-color);border-radius:16px;padding:20px;margin-bottom:20px;">
+                    <h4 style="margin:0 0 16px;"><i class="fa-solid fa-pen"></i> Admin: Mağaza Düzenle</h4>
+                    <div class="input-group" style="margin-bottom:12px;"><label>Mağaza Adı</label><input type="text" id="store-edit-name" placeholder="Mağaza adı"></div>
+                    <div class="input-group" style="margin-bottom:12px;"><label>Kapak Fotoğrafı URL</label><input type="url" id="store-edit-cover" placeholder="https://..."></div>
+                    <div class="input-group" style="margin-bottom:12px;"><label>Logo/Profil URL</label><input type="url" id="store-edit-logo" placeholder="https://..."></div>
+                    <div class="input-group" style="margin-bottom:12px;"><label>Telefon</label><input type="text" id="store-edit-phone" placeholder="+389..."></div>
+                    <div class="input-group" style="margin-bottom:12px;"><label>Şehir</label><select id="store-edit-city"></select></div>
+                    <label class="inline-check" style="margin-bottom:12px;"><input type="checkbox" id="store-edit-verified"> Onaylı Mağaza</label>
+                    <div id="store-pending-photos" style="margin-top:16px;display:none;"></div>
+                    <button type="button" class="admin-btn" id="store-admin-save-btn"><i class="fa-solid fa-save"></i> Kaydet</button>
+                </div>
+                <div class="store-header-inner" style="position:relative;display:flex;gap:24px;align-items:flex-end;flex-wrap:wrap;">
+                    <img id="store-detail-logo" class="store-detail-logo" src="" alt="" style="width:120px;height:120px;border-radius:16px;object-fit:cover;border:4px solid var(--card-bg);box-shadow:var(--shadow);">
+                    <div style="flex:1;min-width:0;">
+                        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
+                            <h2 id="store-detail-name" style="margin:0;font-size:24px;"></h2>
+                            <span id="store-detail-verified-badge" class="store-verified-badge" style="display:none;"><i class="fa-solid fa-badge-check"></i> <span id="store-detail-verified-txt">Onaylı Mağaza</span></span>
+                            <button type="button" id="store-follow-btn" class="store-follow-btn" style="display:none;"><i class="fa-regular fa-heart"></i> <span id="store-follow-txt">Takip Et</span></button>
+                            <span id="store-following-badge" class="store-following-badge" style="display:none;"><i class="fa-solid fa-heart"></i> <span id="store-following-txt">Takip ediyorsun</span></span>
+                        </div>
+                        <p id="store-detail-location" class="store-detail-loc" style="display:none;margin:0 0 4px;color:var(--text-muted);font-size:14px;"></p>
+                        <p id="store-detail-address" class="store-detail-addr" style="display:none;margin:0 0 8px;color:var(--text-muted);font-size:13px;"></p>
+                        <div class="store-detail-badges" id="store-detail-badges" style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;"></div>
+                        <div class="store-stats" style="display:flex;gap:20px;align-items:center;flex-wrap:wrap;">
+                            <span><strong id="store-detail-rating" style="color:var(--primary);">0</strong> ★ <span id="store-detail-review-count" style="color:var(--text-muted);font-size:13px;">0</span></span>
+                            <span id="store-detail-followers" style="font-size:13px;color:var(--text-muted);display:none;"></span>
+                            <span id="store-detail-member-since" style="font-size:13px;color:var(--text-muted);display:none;"></span>
+                            <span id="store-detail-response-rate" style="font-size:13px;color:var(--text-muted);display:none;"></span>
+                            <a id="store-detail-phone" href="#" style="color:var(--primary);font-weight:600;margin-right:8px;"><i class="fa-solid fa-phone"></i></a>
+                            <a id="store-detail-whatsapp" href="#" target="_blank" rel="noopener" class="store-detail-contact-btn" style="display:none;color:#25D366;font-weight:600;text-decoration:none;"><i class="fa-brands fa-whatsapp"></i></a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <nav class="store-detail-tabs" style="display:flex;gap:4px;margin-bottom:24px;border-bottom:1px solid var(--border-color);overflow-x:auto;">
+                <button type="button" class="store-tab-btn active" data-store-tab="products"><i class="fa-solid fa-box"></i> <span id="store-tab-products-txt">Ürünler</span></button>
+                <button type="button" class="store-tab-btn" data-store-tab="reviews"><i class="fa-solid fa-star"></i> <span id="store-tab-reviews-txt">Yorumlar</span> (<span id="store-reviews-count-badge">0</span>)</button>
+                <button type="button" class="store-tab-btn" data-store-tab="qa"><i class="fa-solid fa-circle-question"></i> <span id="store-tab-qa-txt">Soru & Cevap</span> (<span id="store-qa-count-badge">0</span>)</button>
+            </nav>
+            <div id="store-tab-products" class="store-tab-pane active">
+                <div id="store-products-grid" class="store-products-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:20px;"></div>
+                <p id="store-no-products" class="empty-state" style="display:none;text-align:center;padding:40px;">Bu mağazada henüz ürün yok</p>
+            </div>
+            <div id="store-tab-reviews" class="store-tab-pane" style="display:none;">
+                <div id="store-rating-distribution" class="store-rating-distribution" style="display:none;background:var(--card-bg);border-radius:16px;padding:20px;margin-bottom:20px;border:1px solid var(--border-color);">
+                    <h4 style="margin:0 0 12px;"><i class="fa-solid fa-star-half-stroke"></i> <span id="store-rating-dist-txt">Puan Dağılımı</span></h4>
+                    <div id="store-rating-bars"></div>
+                </div>
+                <div style="margin-bottom:16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                    <span id="store-reviews-sort-label" style="font-size:13px;color:var(--text-muted);"></span>
+                    <select id="store-reviews-sort" class="store-reviews-sort" style="padding:8px 12px;border:1px solid var(--border-color);border-radius:8px;background:var(--card-bg);font-size:13px;">
+                        <option value="newest">En Yeni</option>
+                        <option value="highest">En Yüksek Puan</option>
+                        <option value="lowest">En Düşük Puan</option>
+                    </select>
+                </div>
+                <div id="store-reviews-list" class="store-reviews-list"></div>
+                <div id="store-review-form-wrap" style="display:none;background:var(--card-bg);border-radius:16px;padding:24px;margin-bottom:24px;border:1px solid var(--border-color);">
+                    <h4 style="margin:0 0 16px;"><i class="fa-solid fa-pen"></i> <span id="store-review-form-title">Yorum Yaz</span></h4>
+                    <p id="store-review-hint" style="font-size:13px;color:var(--text-muted);margin-bottom:16px;">Sadece bu mağazadan alışveriş yapan müşteriler yorum yapabilir.</p>
+                    <form id="store-review-form">
+                        <div class="star-rating" id="store-review-stars" style="margin-bottom:12px;">
+                            <span class="star" data-value="1"><i class="fa-regular fa-star"></i></span>
+                            <span class="star" data-value="2"><i class="fa-regular fa-star"></i></span>
+                            <span class="star" data-value="3"><i class="fa-regular fa-star"></i></span>
+                            <span class="star" data-value="4"><i class="fa-regular fa-star"></i></span>
+                            <span class="star" data-value="5"><i class="fa-regular fa-star"></i></span>
+                        </div>
+                        <textarea id="store-review-comment" placeholder="Deneyiminizi paylaşın..." maxlength="500" style="width:100%;min-height:80px;padding:12px;border:1px solid var(--border-color);border-radius:8px;margin-bottom:12px;resize:vertical;"></textarea>
+                        <div class="rating-photo-upload" style="margin-bottom:16px;">
+                            <input type="file" id="store-review-photos" accept="image/*" multiple hidden>
+                            <button type="button" class="rating-photo-btn" id="store-review-photo-trigger"><i class="fa-solid fa-camera"></i> <span id="store-review-photo-txt">Fotoğraf ekle (max 3)</span></button>
+                            <div id="store-review-photo-preview" class="rating-photo-preview"></div>
+                        </div>
+                        <button type="submit" class="modern-submit-btn"><i class="fa-solid fa-paper-plane"></i> <span id="store-review-submit-txt">Gönder</span></button>
+                    </form>
+                </div>
+            </div>
+            <div id="store-tab-qa" class="store-tab-pane" style="display:none;">
+                <div id="store-qa-list" class="store-qa-list"></div>
+                <div id="store-qa-form-wrap" style="margin-top:20px;background:var(--card-bg);border-radius:16px;padding:20px;border:1px solid var(--border-color);">
+                    <h4 style="margin:0 0 12px;"><i class="fa-solid fa-circle-question"></i> <span id="store-qa-form-title">Soru Sor</span></h4>
+                    <form id="store-qa-form">
+                        <textarea id="store-qa-question" placeholder="Mağaza hakkında sorunuz..." maxlength="500" required style="width:100%;min-height:80px;padding:12px;border:1px solid var(--border-color);border-radius:8px;margin-bottom:12px;resize:vertical;"></textarea>
+                        <button type="submit" class="modern-submit-btn"><i class="fa-solid fa-paper-plane"></i> <span id="store-qa-submit-txt">Gönder</span></button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAĞAZA OLUŞTUR MODAL -->
+    <div id="create-store-modal" class="modern-modal" style="display:none;">
+        <div class="modal-content" style="max-width:480px;">
+            <span class="close-btn" onclick="window.closeCreateStoreModal()">&times;</span>
+            <h2 class="modal-title"><i class="fa-solid fa-store"></i> <span id="create-store-modal-title">Mağaza Oluştur</span></h2>
+            <form id="create-store-form">
+                <div class="input-group"><label id="create-store-name-label">Mağaza Adı</label><input type="text" id="create-store-name" required placeholder="Mağazanızın adı"></div>
+                <div class="input-group"><label id="create-store-city-label">Şehir</label><select id="create-store-city" required></select></div>
+                <div class="input-group"><label id="create-store-address-label">Adres</label><input type="text" id="create-store-address" placeholder="Adres"></div>
+                <div class="input-group"><label id="create-store-phone-label">Telefon</label><input type="tel" id="create-store-phone" placeholder="+389..."></div>
+                <button type="submit" class="modern-submit-btn"><i class="fa-solid fa-check"></i> <span id="create-store-submit-txt">Mağaza Oluştur</span></button>
+            </form>
+        </div>
+    </div>
+
+    <!-- ÜRÜN EKLE SAYFASI (Tam sayfa) -->
+    <div id="add-product-page" class="profile-page-container" style="display:none;">
+        <div class="profile-page-header">
+            <button class="back-btn" id="back-add-product-btn"><i class="fa-solid fa-arrow-left"></i> <span id="add-product-back-txt">Geri</span></button>
+            <h1><i class="fa-solid fa-box"></i> <span id="add-product-page-title">Ürün Ekle</span></h1>
+            <div class="header-spacer"></div>
+        </div>
+        <div class="add-product-page-content" style="padding:20px 4%;max-width:640px;margin:0 auto;">
+            <form id="add-product-page-form">
+                <input type="hidden" id="add-product-page-store-id">
+                <input type="hidden" id="add-product-page-edit-id" value="">
+                <div class="input-group"><label id="add-product-page-title-label">Ürün Adı</label><input type="text" id="add-product-page-title-inp" required placeholder="Ürün adı"></div>
+                <div class="input-group"><label>Fiyat (EUR)</label><input type="number" id="add-product-page-price" required min="0" step="0.01" placeholder="0"></div>
+                <div class="input-group"><label>Orijinal Fiyat (EUR, indirim için)</label><input type="number" id="add-product-page-original-price" min="0" step="0.01" placeholder="Boş bırakırsanız indirim yok"></div>
+                <div class="input-group"><label>Kategori</label><select id="add-product-page-category" required><option value="">Seçiniz</option><option value="Kadın">Kadın</option><option value="Erkek">Erkek</option><option value="Anne & Çocuk">Anne & Çocuk</option><option value="Ev & Yaşam">Ev & Yaşam</option><option value="Süpermarket">Süpermarket</option><option value="Kozmetik">Kozmetik</option><option value="Elektronik">Elektronik</option><option value="Spor">Spor</option></select></div>
+                <div class="input-group"><label>Materyal</label><select id="add-product-page-material" required><option value="">Seçiniz</option><option value="Pamuk">Pamuk</option><option value="Pamuk Polyester">Pamuk Polyester</option><option value="Polyester">Polyester</option></select></div>
+                <div class="input-group"><label>Renk</label><input type="text" id="add-product-page-color" required placeholder="Siyah, Beyaz..."></div>
+                <div class="input-group"><label>Ürün Görseli</label>
+                    <input type="file" id="add-product-page-image-file" accept="image/*" style="margin-bottom:8px;">
+                    <input type="url" id="add-product-page-image" placeholder="Veya URL yapıştır: https://...">
+                </div>
+                <button type="submit" class="modern-submit-btn"><i class="fa-solid fa-plus"></i> <span id="add-product-page-submit-txt">Ürün Ekle</span></button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MAĞAZA ÜRÜN EKLE MODAL (fallback - artık add-product-page kullanılıyor) -->
+    <div id="add-store-product-modal" class="modern-modal" style="display:none;">
+        <div class="modal-content" style="max-width:540px;">
+            <span class="close-btn" onclick="window.closeAddStoreProductModal()">&times;</span>
+            <h2 class="modal-title"><i class="fa-solid fa-box"></i> <span id="add-product-modal-title">Ürün Ekle</span></h2>
+            <form id="add-store-product-form">
+                <input type="hidden" id="add-product-store-id">
+                <div class="input-group"><label id="add-product-title-label">Ürün Adı</label><input type="text" id="add-product-title" required placeholder="Ürün adı"></div>
+                <div class="input-group"><label id="add-product-price-label">Fiyat (TL)</label><input type="number" id="add-product-price" required min="0" step="0.01" placeholder="0"></div>
+                <div class="input-group"><label id="add-product-category-label">Kategori</label><select id="add-product-category" required><option value="">Seçiniz</option><option value="Kadın">Kadın</option><option value="Erkek">Erkek</option><option value="Anne & Çocuk">Anne & Çocuk</option><option value="Ev & Yaşam">Ev & Yaşam</option><option value="Süpermarket">Süpermarket</option><option value="Kozmetik">Kozmetik</option><option value="Elektronik">Elektronik</option><option value="Spor">Spor</option></select></div>
+                <div class="input-group"><label>Kalıp</label><select id="add-product-fit"><option value="">Seçiniz</option><option value="Regular">Regular</option><option value="Slim">Slim</option><option value="Oversize">Oversize</option></select></div>
+                <div class="input-group"><label>Yaka Tipi</label><select id="add-product-collarType"><option value="">Seçiniz</option><option value="Gömlek Yaka">Gömlek Yaka</option><option value="V Yaka">V Yaka</option><option value="Bisiklet Yaka">Bisiklet Yaka</option><option value="Yuvarlak Yaka">Yuvarlak Yaka</option></select></div>
+                <div class="input-group"><label>Materyal</label><select id="add-product-material" required><option value="">Seçiniz</option><option value="Pamuk">Pamuk</option><option value="Pamuk Polyester">Pamuk Polyester</option><option value="Polyester">Polyester</option><option value="Yün">Yün</option><option value="Deri">Deri</option></select></div>
+                <div class="input-group"><label>Desen</label><select id="add-product-pattern"><option value="">Seçiniz</option><option value="Düz">Düz</option><option value="Çizgili">Çizgili</option><option value="Kareli">Kareli</option><option value="Baskılı">Baskılı</option></select></div>
+                <div class="input-group"><label>Renk</label><input type="text" id="add-product-color" required placeholder="Örn: Siyah, Beyaz"></div>
+                <div class="input-group"><label>Beden</label><input type="text" id="add-product-size" placeholder="S, M, L veya 38, 40"></div>
+                <div class="input-group"><label id="add-product-image-label">Görsel URL</label><input type="url" id="add-product-image" placeholder="https://..."></div>
+                <button type="submit" class="modern-submit-btn"><i class="fa-solid fa-plus"></i> <span id="add-product-submit-txt">Ürün Ekle</span></button>
+            </form>
+        </div>
+    </div>
+
     <!-- ADMIN PANEL -->
     <div id="admin-page" class="profile-page-container" style="display: none;">
         <div class="profile-page-header">
@@ -814,6 +1414,10 @@
             <button class="admin-tab-btn" data-admin-tab="ads">İlanlar</button>
             <button class="admin-tab-btn" data-admin-tab="analytics">Analytics</button>
             <button class="admin-tab-btn" data-admin-tab="reports">Şikayetler</button>
+            <button class="admin-tab-btn" data-admin-tab="platform">Platform (2. El)</button>
+            <button class="admin-tab-btn" data-admin-tab="stores">Mağazalar</button>
+            <button class="admin-tab-btn" data-admin-tab="product-requests">Ürün Talepleri (<span id="admin-product-requests-badge">0</span>)</button>
+            <button class="admin-tab-btn" data-admin-tab="seller-apps">Satıcı Başvuruları (<span id="admin-seller-apps-badge">0</span>)</button>
         </div>
         <div class="admin-content">
             <div id="admin-tab-stats" class="admin-tab-pane active">
@@ -860,6 +1464,12 @@
                         <div class="admin-setting-row"><label>Viber No</label><input type="text" id="adm-viber" placeholder="+38970000000"></div>
                     </div>
                 </div>
+                <div class="admin-section">
+                    <h3>Satıcı Başvurusu Mesaj Şablonları</h3>
+                    <p style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">Admin panelden gönderilecek WhatsApp mesajlarını düzenleyin. Boş bırakılırsa varsayılan mesaj kullanılır.</p>
+                    <div class="input-group" style="margin-bottom:16px;"><label>1. Mesaj (Bilgi onayı)</label><textarea id="adm-seller-msg-intro" rows="5" placeholder="Merhabalar 😊 Sizlere alsat.com.mk'dan yazıyorum..."></textarea></div>
+                    <div class="input-group"><label>2. Mesaj (Fotoğraf isteği)</label><textarea id="adm-seller-msg-confirm" rows="4" placeholder="Mağazanızın güvenilirliği için ürün fotoğrafı gönderin..."></textarea></div>
+                </div>
                 <button class="admin-btn" id="admin-save-settings">Ayarları Kaydet</button>
             </div>
             <div id="admin-tab-pending" class="admin-tab-pane">
@@ -904,6 +1514,53 @@
             <div id="admin-tab-reports" class="admin-tab-pane">
                 <div id="admin-reports-list" class="admin-reports-list"></div>
             </div>
+            <div id="admin-tab-platform" class="admin-tab-pane">
+                <div class="admin-section">
+                    <h3><i class="fa-solid fa-bell"></i> Arama Kayıtları</h3>
+                    <p id="admin-search-alerts-count" style="font-size:14px;color:var(--text-muted);">0 kayıtlı arama bildirimi</p>
+                    <div id="admin-search-alerts-list" style="max-height:200px;overflow-y:auto;"></div>
+                </div>
+                <div class="admin-section">
+                    <h3><i class="fa-solid fa-bolt"></i> Hızlı Satan Satıcılar</h3>
+                    <p id="admin-fast-sellers-count" style="font-size:14px;color:var(--text-muted);">0 hızlı satan</p>
+                    <div id="admin-fast-sellers-list" style="max-height:200px;overflow-y:auto;"></div>
+                </div>
+                <div class="admin-section">
+                    <h3><i class="fa-solid fa-star"></i> Değerlendirme Özeti</h3>
+                    <p id="admin-ratings-summary" style="font-size:14px;color:var(--text-muted);">0 değerlendirme</p>
+                    <div id="admin-ratings-list" style="max-height:200px;overflow-y:auto;"></div>
+                </div>
+                <div class="admin-section">
+                    <h3><i class="fa-solid fa-clipboard-check"></i> Satıldı Anketi</h3>
+                    <p id="admin-sold-survey-stats" style="font-size:14px;color:var(--text-muted);">-</p>
+                </div>
+                <div class="admin-section">
+                    <h3><i class="fa-solid fa-chart-line"></i> Fiyat Trendi (Kategori)</h3>
+                    <div id="admin-price-trends" style="max-height:180px;overflow-y:auto;"></div>
+                </div>
+                <div class="admin-section">
+                    <h3><i class="fa-solid fa-copy"></i> Tekrarlayan İlan Raporu</h3>
+                    <button type="button" class="admin-btn-small" id="admin-scan-duplicates">Tara</button>
+                    <div id="admin-duplicates-list" style="max-height:180px;overflow-y:auto;margin-top:12px;"></div>
+                </div>
+                <div class="admin-section">
+                    <h3><i class="fa-solid fa-download"></i> Dışa Aktarma</h3>
+                    <button type="button" class="admin-btn-small" id="admin-export-search-alerts"><i class="fa-solid fa-file-csv"></i> Arama Kayıtları CSV</button>
+                </div>
+                <div class="admin-section">
+                    <h3><i class="fa-solid fa-list-check"></i> Denetim Kaydı</h3>
+                    <div id="admin-audit-list" style="max-height:200px;overflow-y:auto;"></div>
+                </div>
+            </div>
+            <div id="admin-tab-stores" class="admin-tab-pane">
+                <div id="admin-stores-list" class="admin-stores-list"></div>
+            </div>
+            <div id="admin-tab-product-requests" class="admin-tab-pane">
+                <div id="admin-product-requests-list" class="admin-stores-list"></div>
+            </div>
+            <div id="admin-tab-seller-apps" class="admin-tab-pane">
+                <div id="admin-seller-apps-list" class="admin-seller-apps-list"></div>
+            </div>
         </div>
     </div>
 
@@ -931,6 +1588,29 @@
                 <label><input type="checkbox" id="adm-edit-banned"> Engelli</label>
             </div>
             <button class="admin-btn" style="margin-top:12px;width:100%;" id="admin-save-user">Kaydet</button>
+        </div>
+    </div>
+
+    <!-- Admin: Satıcı Başvuru Onay Modal (şifre belirleme) -->
+    <div id="admin-seller-approve-modal" class="modern-modal admin-modal-overlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:99999;background:rgba(0,0,0,0.85);align-items:center;justify-content:center;">
+        <div class="modal-content" style="max-width:420px;">
+            <span class="close-btn" onclick="window.closeSellerAppApproveModal()">&times;</span>
+            <h2 class="modal-title" id="seller-approve-modal-title">Satıcı Başvurusunu Onayla</h2>
+            <input type="hidden" id="adm-seller-approve-app-id">
+            <div class="input-group"><label id="seller-approve-password-label">İlk giriş şifresi</label><input type="text" id="adm-seller-approve-password" placeholder="Satıcı bu şifre ile giriş yapacak" minlength="6"></div>
+            <p style="font-size:12px;color:var(--text-muted);margin-top:4px;">Satıcı e-posta + bu şifre ile giriş yapabilir. Daha sonra şifresini değiştirebilir.</p>
+            <button class="admin-btn" style="margin-top:12px;width:100%;background:#28a745;" id="admin-seller-approve-submit"><span id="seller-approve-submit-txt">Onayla ve Şifreyi Kaydet</span></button>
+        </div>
+    </div>
+
+    <!-- Admin: Satıcı Başvuru Red Modal -->
+    <div id="admin-seller-reject-modal" class="modern-modal admin-modal-overlay" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;z-index:99999;background:rgba(0,0,0,0.85);align-items:center;justify-content:center;">
+        <div class="modal-content" style="max-width:420px;">
+            <span class="close-btn" onclick="window.closeSellerAppRejectModal()">&times;</span>
+            <h2 class="modal-title" id="seller-reject-modal-title">Satıcı Başvurusunu Reddet</h2>
+            <input type="hidden" id="adm-seller-reject-app-id">
+            <div class="input-group"><label id="seller-reject-reason-label">Red sebebi</label><textarea id="adm-seller-reject-reason" rows="4" placeholder="Red sebebini yazın..."></textarea></div>
+            <button class="admin-btn" style="margin-top:12px;width:100%;background:#dc3545;" id="admin-seller-reject-submit"><span id="seller-reject-submit-txt">Reddet ve Bildir</span></button>
         </div>
     </div>
 
@@ -975,10 +1655,10 @@
     </div>
 
     <!-- MESAJLAŞMA MODAL -->
-    <div id="messaging-modal" class="modern-modal">
+    <div id="messaging-modal" class="modern-modal" role="dialog" aria-modal="true" aria-labelledby="messaging-modal-title">
         <div class="modal-content messaging-modal-content">
             <span class="close-btn" onclick="window.closeMessagingModal()">&times;</span>
-            <h2 class="modal-title"><i class="fa-solid fa-comments"></i> Mesajlar</h2>
+            <h2 id="messaging-modal-title" class="modal-title"><i class="fa-solid fa-comments"></i> Mesajlar</h2>
             <div class="messaging-grid">
             <div class="conversations-list">
                 <input type="search" id="msg-search" placeholder="Konuşma ara...">
@@ -994,8 +1674,11 @@
                     </div>
                 </div>
                 <div id="message-form-container" class="message-form-container" style="display: none;">
+                <div id="message-quick-templates" class="message-quick-templates"></div>
+                <div class="message-input-row">
                 <input type="text" id="message-input" placeholder="Mesajınız..." maxlength="500">
                 <button id="send-message-btn" class="send-btn"><i class="fa-solid fa-paper-plane"></i></button>
+                </div>
                 </div>
             </div>
             </div>
@@ -1029,6 +1712,14 @@
                 <div class="form-section">
                     <label for="rating-comment">Yorumunuz (İsteğe Bağlı)</label>
                     <textarea id="rating-comment" placeholder="Deneyiminizi paylaşın..." maxlength="500"></textarea>
+                </div>
+                <div class="form-section">
+                    <label id="rating-photo-label">Yorum fotoğrafı (max 3)</label>
+                    <div class="rating-photo-upload" id="rating-photo-upload">
+                        <input type="file" id="rating-photo-input" accept="image/*" multiple hidden>
+                        <button type="button" class="rating-photo-btn" id="rating-photo-trigger"><i class="fa-solid fa-camera"></i> <span id="rating-photo-txt">Fotoğraf ekle</span></button>
+                        <div id="rating-photo-preview" class="rating-photo-preview"></div>
+                    </div>
                 </div>
                 <button type="submit" class="modern-submit-btn">Gönder</button>
             </form>
@@ -1077,6 +1768,13 @@
 
     <script src="translations.js"></script>
     <script src="car-data.js"></script>
+    <script src="stores-data.js"></script>
+    <script src="jobs-data.js"></script>
+    <script src="api.js"></script>
+    <!-- Backend kullanmak için: <script>window.API_BASE = 'http://localhost:3001';</script> -->
     <script src="script.js"></script>
+    <script>
+    (function(){ if(window.openStoresPage) return; window.openStoresPage = function(){ var sp = document.getElementById('stores-page'); if(!sp) return; document.querySelectorAll('.profile-page-container').forEach(function(p){ p.style.display = 'none'; }); var hv = document.getElementById('homepage-view'); var lv = document.getElementById('listing-view'); if(hv) hv.style.display = 'none'; if(lv) lv.style.display = 'none'; sp.style.display = 'block'; }; })();
+    </script>
 </body>
 </html>
