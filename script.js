@@ -5060,6 +5060,63 @@ qsa('.toggle-password').forEach(btn => {
 // ========== EVENT BINDINGS ==========
 document.addEventListener('DOMContentLoaded', async function() {
     try {
+    // Mobil menüyü EN BAŞTA bağla - diğer init hataları bunu engellemesin
+    (function initMobileMenuFirst() {
+        var btn = document.getElementById('mobile-menu-btn');
+        var overlay = document.getElementById('mobile-menu-overlay');
+        var drawer = document.getElementById('mobile-menu-drawer');
+        var closeBtn = document.getElementById('mobile-menu-close');
+        if (!btn || !overlay) return;
+        function openMenu() {
+            overlay.classList.add('open');
+            overlay.setAttribute('aria-hidden', 'false');
+            document.body.style.overflow = 'hidden';
+            btn.setAttribute('aria-expanded', 'true');
+        }
+        function closeMenu() {
+            overlay.classList.remove('open');
+            overlay.setAttribute('aria-hidden', 'true');
+            document.body.style.overflow = '';
+            btn.setAttribute('aria-expanded', 'false');
+        }
+        function doOpen(e) { if (e) { e.preventDefault(); e.stopPropagation(); } openMenu(); }
+        function doClose(e) { if (e) { e.preventDefault(); e.stopPropagation(); } closeMenu(); }
+        btn.addEventListener('click', doOpen);
+        btn.addEventListener('touchend', function(e) { e.preventDefault(); openMenu(); }, { passive: false });
+        if (closeBtn) {
+            closeBtn.addEventListener('click', doClose);
+            closeBtn.addEventListener('touchend', function(e) { e.preventDefault(); closeMenu(); }, { passive: false });
+        }
+        overlay.addEventListener('click', function(e) { if (e.target === overlay) closeMenu(); });
+        if (drawer) drawer.addEventListener('click', function(e) { e.stopPropagation(); });
+        // Drawer içindeki öğelere tıklama - event delegation ile
+        drawer.addEventListener('click', function(e) {
+            var t = e.target.closest('[id^="mobile-action-"]');
+            if (!t) return;
+            var id = t.id;
+            closeMenu();
+            if (id === 'mobile-action-login') { (window.openLoginModal || function(){})(); }
+            else if (id === 'mobile-action-ilan') {
+                var u = (typeof getCurrentUser === 'function' ? getCurrentUser() : (window.getCurrentUser && window.getCurrentUser()));
+                if (!u) {
+                    (window.showToast || function(){})('Giriş yapınız', 'warning', 2000);
+                    (window.openLoginModal || function(){})();
+                } else { var m = document.getElementById('ilan-modal'); if (m) m.style.display = 'flex'; }
+            }
+            else if (id === 'mobile-action-fav') { (window.openFavoritesPage || function(){})(); }
+            else if (id === 'mobile-action-support') { (window.openSupportModal || function(){})(); }
+            else if (id === 'mobile-action-theme') {
+                var isDark = document.body.classList.contains('dark-theme');
+                if (window.applyTheme) applyTheme(!isDark); else { document.body.classList.toggle('dark-theme', !isDark); document.body.classList.toggle('light-theme', isDark); }
+            }
+        });
+        // Arama ve logo - mobilde çalışsın
+        var searchBtn = document.getElementById('searchBtn');
+        var logoHome = document.getElementById('logo-home');
+        if (searchBtn) searchBtn.addEventListener('click', function() { if (typeof showListingPage === 'function') showListingPage(); if (typeof applyFilters === 'function') applyFilters(); });
+        if (logoHome) logoHome.addEventListener('click', function(e) { e.preventDefault(); if (typeof showHomepage === 'function') showHomepage(); });
+    })();
+
     const sendCodeBtn = el('signup-send-code-btn');
     if (window.API_BASE && sendCodeBtn) sendCodeBtn.style.display = '';
 
