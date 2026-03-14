@@ -5749,9 +5749,9 @@ document.addEventListener('DOMContentLoaded', async function() {
         el('forgot-step1').style.display = 'block';
         el('forgot-step2').style.display = 'none';
         el('forgot-email').value = '';
-        el('forgot-code')?.value = '';
-        el('forgot-new-password')?.value = '';
-        el('forgot-confirm-password')?.value = '';
+        var fc = el('forgot-code'); if (fc) fc.value = '';
+        var fnp = el('forgot-new-password'); if (fnp) fnp.value = '';
+        var fcp = el('forgot-confirm-password'); if (fcp) fcp.value = '';
     });
     el('forgot-send-btn')?.addEventListener('click', async function() {
         const email = (el('forgot-email')?.value || '').trim();
