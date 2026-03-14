@@ -701,7 +701,7 @@
     </div>
 
     <!-- KULLANICI SÖZLEŞMESİ MODAL -->
-    <div id="terms-modal" class="modern-modal">
+    <div id="terms-modal" class="modern-modal" style="z-index:2500">
         <div class="modal-content" style="max-width:700px;max-height:90vh;overflow-y:auto;">
             <span class="close-btn" onclick="window.closeTermsModal()">&times;</span>
             <h2 class="modal-title"><i class="fa-solid fa-file-contract"></i> Alsat Kullanıcı Sözleşmesi</h2>
@@ -1831,6 +1831,23 @@
 
     <script src="translations.js"></script>
     <script src="terms-content.js"></script>
+    <script>
+    window.openTermsModal=function(){
+        var m=document.getElementById('terms-modal');
+        var c=document.getElementById('terms-content');
+        if(!m||!c)return;
+        var lang=(window.currentLang||'mk');
+        var d=window.ALSAT_TERMS_CONTENT;
+        c.innerHTML=(d&&d[lang])||(d&&d.tr)||(d&&d.mk)||(d&&d.en)||(d&&d.al)||'';
+        m.style.display='flex';
+        m.classList.add('active');
+        document.body.style.overflow='hidden';
+    };
+    window.closeTermsModal=function(){
+        var m=document.getElementById('terms-modal');
+        if(m){m.style.display='none';m.classList.remove('active');document.body.style.overflow='';}
+    };
+    </script>
     <script src="car-data.js"></script>
     <script src="stores-data.js"></script>
     <script src="jobs-data.js"></script>

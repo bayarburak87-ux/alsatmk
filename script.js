@@ -3483,7 +3483,6 @@ function renderAlsatStorePage(opts) {
 }
 
 window.openStoresPage = function () {
-    if (!isAdmin()) return; // Alsat Store sadece admin için
     const hv = el('homepage-view');
     const lv = el('listing-view');
     window.alsatStoreFrom = (lv && lv.style.display === 'block') ? 'listing' : 'homepage';
@@ -5062,6 +5061,142 @@ qsa('.toggle-password').forEach(btn => {
 // ========== EVENT BINDINGS ==========
 document.addEventListener('DOMContentLoaded', async function() {
     try {
+    // TÜM KRİTİK TIKLAMALAR - Document delegation (hiçbir init hatası engellemesin)
+    document.addEventListener('click', function criticalClick(e) {
+        var t = e.target;
+        if (t.closest && t.closest('#open-terms-link')) { e.preventDefault(); e.stopPropagation(); (window.openTermsModal||function(){})(); return; }
+        if (t.closest && t.closest('#logo-home')) { e.preventDefault(); if (window.showHomepage) showHomepage(); return; }
+        if (t.closest && t.closest('.back-btn')) {
+            e.preventDefault();
+            var sp = document.getElementById('stores-page');
+            var pg = document.getElementById('product-detail-page');
+            var sd = document.getElementById('store-detail-page');
+            var ad = document.getElementById('add-product-page');
+            var hv = document.getElementById('homepage-view');
+            var lv = document.getElementById('listing-view');
+            if (sp && sp.style.display === 'block') {
+                sp.style.display = 'none';
+                var from = window.alsatStoreFrom || 'homepage';
+                if (hv && lv) { lv.style.display = from === 'listing' ? 'block' : 'none'; hv.style.display = from === 'listing' ? 'none' : 'block'; }
+                window.scrollTo(0,0);
+            } else if (pg && pg.style.display === 'block') {
+                pg.style.display = 'none';
+                if (sd && sd.style.display === 'block') sd.style.display = 'block'; else if (sp) sp.style.display = 'block';
+                window.scrollTo(0,0);
+            } else if (sd && sd.style.display === 'block') {
+                sd.style.display = 'none';
+                if (sp) sp.style.display = 'block';
+                window.scrollTo(0,0);
+            } else if (ad && ad.style.display === 'block') {
+                ad.style.display = 'none';
+                if (sd) sd.style.display = 'block';
+                window.scrollTo(0,0);
+            } else {
+                document.querySelectorAll('.profile-page-container').forEach(function(p){ p.style.display = 'none'; });
+                if (hv) hv.style.display = 'block';
+                if (lv) lv.style.display = 'none';
+                if (sp) sp.style.display = 'none';
+                window.scrollTo(0,0);
+            }
+            return;
+        }
+        var storesPg = document.getElementById('stores-page');
+        if (t.closest && t.closest('.alsat-store-nav') && storesPg && storesPg.style.display === 'block') {
+            var btn = t.closest('.alsat-nav-item'); if (!btn) return;
+            e.preventDefault(); e.stopPropagation();
+            var cat = btn.dataset.cat, navType = btn.dataset.nav;
+            document.querySelectorAll('.alsat-store-nav .alsat-nav-item').forEach(function(n){ n.classList.remove('active'); });
+            if (cat) {
+                storesPg.dataset.alsatCategory = cat; storesPg.dataset.alsatFilter = '';
+                btn.classList.add('active');
+            } else if (navType === 'categories') {
+                storesPg.dataset.alsatCategory = ''; storesPg.dataset.alsatFilter = '';
+            } else if (navType === 'flash') {
+                storesPg.dataset.alsatFilter = 'flash'; storesPg.dataset.alsatCategory = '';
+                document.querySelector('.alsat-store-nav .alsat-nav-item[data-nav="flash"]')?.classList.add('active');
+                document.querySelectorAll('.discount-banner').forEach(function(x){ x.classList.remove('active'); });
+            } else if (navType === 'bestsellers') {
+                storesPg.dataset.alsatFilter = 'bestsellers'; storesPg.dataset.alsatCategory = '';
+                document.querySelector('.alsat-store-nav .alsat-nav-item[data-nav="bestsellers"]')?.classList.add('active');
+                document.querySelectorAll('.discount-banner').forEach(function(x){ x.classList.remove('active'); });
+            } else {
+                storesPg.dataset.alsatCategory = ''; storesPg.dataset.alsatFilter = '';
+            }
+            if (window.renderAlsatStorePage) renderAlsatStorePage({ scrollToProducts: true });
+            return;
+        }
+        var discBanner = t.closest && t.closest('.discount-banner');
+        if (discBanner && storesPg && storesPg.style.display === 'block') {
+            e.preventDefault();
+            storesPg.dataset.alsatFilter = '';
+            storesPg.dataset.alsatMinDisc = discBanner.dataset.min || '0';
+            document.querySelectorAll('.alsat-nav-item').forEach(function(n){ n.classList.remove('active'); });
+            document.querySelectorAll('.discount-banner').forEach(function(x){ x.classList.remove('active'); });
+            discBanner.classList.add('active');
+            if (window.renderAlsatStorePage) renderAlsatStorePage({ scrollToProducts: true });
+            return;
+        }
+        var alsatCatCard = t.closest && t.closest('.alsat-cat-card');
+        if (alsatCatCard && storesPg && storesPg.style.display === 'block') {
+            e.preventDefault();
+            var c = alsatCatCard.dataset.cat;
+            if (c) {
+                storesPg.dataset.alsatCategory = c;
+                document.querySelectorAll('.alsat-nav-item[data-cat]').forEach(function(n){ n.classList.toggle('active', n.dataset.cat === c); });
+                if (window.renderAlsatStorePage) renderAlsatStorePage({ scrollToProducts: true });
+            }
+            return;
+        }
+        if (t.closest && t.closest('.homepage-cat-item')) {
+            e.preventDefault();
+            var item = t.closest('.homepage-cat-item');
+            if (item && window.showListingPage) { showListingPage(item.dataset.homepageCat); if (window.filterByCategory) filterByCategory(item.dataset.homepageCat); }
+            return;
+        }
+        if (t.closest && t.closest('.region-link')) {
+            e.preventDefault();
+            var link = t.closest('.region-link');
+            if (link) {
+                var regions = document.querySelector('.homepage-regions');
+                if (regions) regions.querySelectorAll('.region-link').forEach(function(l){ l.classList.remove('active'); });
+                link.classList.add('active');
+                var city = link.dataset.city || null;
+                if (city === '') city = null;
+                if (window.showListingPage) showListingPage(null, city);
+            }
+            return;
+        }
+        if (t.closest && (t.closest('#homepage-stores-btn') || t.closest('.homepage-stores-btn') || t.closest('.alsat-store-cta'))) {
+            e.preventDefault();
+            (window.openStoresPage||function(){
+                var sp = document.getElementById('stores-page');
+                if (sp) { document.querySelectorAll('.profile-page-container').forEach(function(p){ p.style.display='none'; });
+                    var hv = document.getElementById('homepage-view'), lv = document.getElementById('listing-view');
+                    if (hv) hv.style.display='none'; if (lv) lv.style.display='none';
+                    sp.style.display='block'; window.alsatStoreFrom = (lv&&lv.style.display==='block')?'listing':'homepage';
+                    if (window.renderAlsatStorePage) renderAlsatStorePage();
+                }
+            })();
+            return;
+        }
+        if (t.closest && t.closest('#homepage-ilan-ver')) {
+            e.preventDefault();
+            if (window.getCurrentUser && getCurrentUser()) { var m = document.getElementById('ilan-modal'); if (m) m.style.display = 'flex'; }
+            else { (window.showToast||function(){})(typeof window.t==='function'?t('postAdRequired'):'Giriş yapınız','warning',2000); (window.openLoginModal||function(){})(); }
+            return;
+        }
+        var adCard = t.closest && (t.closest('.ilan-kart[data-ad-id]') || t.closest('.homepage-new-ad-card[data-ad-id]') || (t.closest('.recent-ad-card') && !t.closest('.recent-ad-remove, .recent-ad-fav, .recent-ad-compare')));
+        if (adCard && adCard.dataset && adCard.dataset.adId) {
+            e.preventDefault();
+            var id = parseInt(adCard.dataset.adId, 10);
+            if (id && window.ilanDetayAc) window.ilanDetayAc(id);
+            return;
+        }
+    }, true);
+
+    // Homepage içeriğini hemen doldur - butonlar çalışsın diye
+    try { if (typeof initHomepage === 'function') initHomepage(); } catch (eh) { console.warn('initHomepage early:', eh); }
+
     // Mobil menüyü EN BAŞTA bağla - diğer init hataları bunu engellemesin
     (function initMobileMenuFirst() {
         var btn = document.getElementById('mobile-menu-btn');
