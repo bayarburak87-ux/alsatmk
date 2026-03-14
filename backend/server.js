@@ -108,14 +108,14 @@ app.post('/api/ads', async (req, res) => {
     const d = req.body;
     const images = JSON.stringify(d.images || []);
     const attrs = JSON.stringify(d.attrs || {});
-    const priceHistory = JSON.stringify(d.priceHistory || [{ price: d.price, currency: d.currency || 'EUR', date: new Date().toISOString() }]);
+    const priceHistory = JSON.stringify(d.priceHistory || [{ price: d.price, currency: d.currency || 'MKD', date: new Date().toISOString() }]);
     const createdAt = new Date().toISOString().slice(0, 10);
     const expiry = new Date();
     expiry.setDate(expiry.getDate() + (d.durationDays || 30));
     const expiryAt = expiry.toISOString().slice(0, 10);
     const insertCols = 'user_id, title, price, currency, category, sub_category, city, district, description, images, attrs, condition, seller_type, status, accept_trade, price_history, created_at, expiry_at';
     const insertVals = '?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?';
-    const insertParams = [d.userId, d.title, d.price, d.currency || 'EUR', d.category, d.subCategory, d.city, d.district, d.description || '', images, attrs, d.condition || 'İkinci El', d.sellerType || 'Sahibinden', d.status || 'pending', d.acceptTrade ? 1 : 0, priceHistory, createdAt, expiryAt];
+    const insertParams = [d.userId, d.title, d.price, d.currency || 'MKD', d.category, d.subCategory, d.city, d.district, d.description || '', images, attrs, d.condition || 'İkinci El', d.sellerType || 'Sahibinden', d.status || 'pending', d.acceptTrade ? 1 : 0, priceHistory, createdAt, expiryAt];
     let insertSql = `INSERT INTO ads (${insertCols}) VALUES (${insertVals})`;
     if (driver === 'postgres') insertSql += ' RETURNING id';
     const { sql: s, params: p } = paramStyle(insertSql, insertParams);
@@ -207,7 +207,7 @@ app.post('/api/auth/send-code', async (req, res) => {
 
 app.post('/api/auth/verify-register', async (req, res) => {
   try {
-    const { email, code, name, password } = req.body;
+    const { email, code, name, password, phone } = req.body;
     const em = (email || '').trim().toLowerCase();
     if (!em || !code || !password || password.length < 6) {
       return res.status(400).json({ error: 'Eksik veya geçersiz bilgi' });
@@ -217,7 +217,8 @@ app.post('/api/auth/verify-register', async (req, res) => {
     }
     const bcrypt = require('bcryptjs');
     const hash = bcrypt.hashSync(password, 10);
-    const { sql: s, params: p } = paramStyle('INSERT INTO users (email, name, password_hash) VALUES (?, ?, ?)', [em, (name || '').trim() || em.split('@')[0], hash]);
+    const phoneVal = (phone || '').trim();
+    const { sql: s, params: p } = paramStyle('INSERT INTO users (email, name, password_hash, phone) VALUES (?, ?, ?, ?)', [em, (name || '').trim() || em.split('@')[0], hash, phoneVal]);
     const r = await db.runAsync(s, p);
     res.status(201).json({ id: r.insertId || r.insert_id });
   } catch (e) {

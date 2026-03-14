@@ -4,10 +4,10 @@
  */
 
 // ========== DİL SİSTEMİ ==========
-window.currentLang = localStorage.getItem('alsat_lang') || 'tr';
+window.currentLang = localStorage.getItem('alsat_lang') || 'mk';
 
 function t(key, subKey) {
-    const tr = window.TRANSLATIONS?.[window.currentLang] || window.TRANSLATIONS?.tr || {};
+    const tr = window.TRANSLATIONS?.[window.currentLang] || window.TRANSLATIONS?.mk || {};
     if (subKey && tr[key]) return tr[key][subKey] ?? tr[key]?.[subKey] ?? key;
     return tr[key] ?? key;
 }
@@ -23,7 +23,7 @@ function tDistrict(districtKey) {
 }
 
 function updateMetaTags(title, desc) {
-    const L = window.TRANSLATIONS?.[window.currentLang] || window.TRANSLATIONS?.tr || {};
+    const L = window.TRANSLATIONS?.[window.currentLang] || window.TRANSLATIONS?.mk || {};
     document.title = title || L.pageTitle || 'Alsat';
     const metaDesc = document.querySelector('meta[name="description"]');
     if (metaDesc && desc) metaDesc.setAttribute('content', desc);
@@ -46,7 +46,7 @@ function updateLanguage(lang) {
     if (mainLang) mainLang.value = lang;
     var mobLang = document.getElementById('mobile-lang-select');
     if (mobLang) mobLang.value = lang;
-    const L = window.TRANSLATIONS?.[lang] || window.TRANSLATIONS?.tr || {};
+    const L = window.TRANSLATIONS?.[lang] || window.TRANSLATIONS?.mk || {};
     const set = (id, prop, val) => { const e = el(id); if (e && val) e[prop] = val; };
     document.title = L.pageTitle || document.title;
     set('searchInput', 'placeholder', L.search);
@@ -186,11 +186,19 @@ function updateLanguage(lang) {
     set('signup-name-label', 'textContent', L.fullName);
     set('signup-name', 'placeholder', L.namePlaceholder);
     set('signup-email-label', 'textContent', L.email);
+    set('signup-phone-label', 'textContent', L.phone || 'TELEFON');
+    set('signup-phone', 'placeholder', L.phonePlaceholder || '+389 70 123 456');
     set('signup-pass-label', 'textContent', L.password);
     set('signup-password', 'placeholder', L.passwordPlaceholder);
     set('signup-confirm-label', 'textContent', L.confirmPassword);
     set('signup-confirm', 'placeholder', L.confirmPlaceholder);
-    set('agree-text', 'textContent', L.agreeTerms);
+    const agreePrefix = el('agree-prefix');
+    const agreeLink = el('open-terms-link');
+    const agreeSuffix = el('agree-suffix');
+    if (agreePrefix) agreePrefix.textContent = L.agreeTermsPrefix || '';
+    if (agreeLink) { agreeLink.textContent = L.termsOfUse || L.termsLink || 'Kullanım koşulları'; agreeLink.title = L.termsModalTitle || ''; }
+    if (agreeSuffix) agreeSuffix.textContent = L.agreeTermsSuffix || '';
+    set('terms-modal-close', 'textContent', L.modalClose || 'Kapat');
     set('signup-btn-text', 'textContent', L.signupBtn);
     set('back-text', 'textContent', L.back);
     set('login-text', 'textContent', L.haveAccount);
@@ -316,6 +324,8 @@ function updateLanguage(lang) {
     set('forgot-desc', 'textContent', L.forgotPasswordDesc);
     set('forgot-code-desc', 'textContent', L.forgotCodeDesc || 'E-postanıza gelen 6 haneli kodu girin ve yeni şifrenizi belirleyin.');
     set('signup-code-desc', 'textContent', L.signupCodeDesc || 'E-postanıza gelen 6 haneli doğrulama kodunu girin.');
+    const scTxt = el('signup-send-code-txt');
+    if (scTxt) scTxt.textContent = L.sendCodeBtn || 'Doğrulama Kodu Gönder';
     set('forgot-send-btn', 'textContent', L.sendResetLink);
     const sehirOpt = el('sehir-select')?.querySelector('option[value=""]');
     if (sehirOpt) sehirOpt.textContent = L.allMacedonia;
@@ -495,7 +505,7 @@ window.approveStorePhotoRequest = function(id) {
     saveStorePhotoRequests();
     const storeId = req.storeId;
     openStoreDetail(storeId, { adminMode: true });
-    showToast('Fotoğraf talebi onaylandı', 'success', 2000);
+    showToast(t('photoRequestApproved'), 'success', 2000);
 };
 window.rejectStorePhotoRequest = function(id) {
     const req = (window.storePhotoRequests || []).find(r => r.id === id);
@@ -504,7 +514,7 @@ window.rejectStorePhotoRequest = function(id) {
     saveStorePhotoRequests();
     const storeId = req.storeId;
     openStoreDetail(storeId, { adminMode: true });
-    showToast('Fotoğraf talebi reddedildi', 'info', 2000);
+    showToast(t('photoRequestRejected'), 'info', 2000);
 };
 
 function saveRecentlyViewed() { localStorage.setItem('alsat_recently_viewed', JSON.stringify(window.recentlyViewed || [])); }
@@ -529,8 +539,8 @@ function addAdminAudit(action, details) { window.adminAuditLog = window.adminAud
 function saveSavedFilters() { localStorage.setItem('alsat_saved_filters', JSON.stringify(window.savedFilters || [])); }
 
 const DEFAULT_SITE_SETTINGS = {
-    premiumPrices: { vitrin: 5, font: 2, urgent: 3, stats: 4, extend: 3, multicity: 6, verified: 8 },
-    bumpPrice: 2,
+    premiumPrices: { vitrin: 310, font: 125, urgent: 185, stats: 250, extend: 185, multicity: 370, verified: 500 },
+    bumpPrice: 125,
     maxPhotos: 15,
     maxVideoSeconds: 30,
     defaultAdDays: 30,
@@ -590,11 +600,11 @@ function getAllUserIds() {
     return [...ids];
 }
 
-function getOrCreateUser(id, email, name) {
+function getOrCreateUser(id, email, name, phone) {
     if (!window.usersDatabase) loadUsersDatabase();
     const uid = Number(id);
     if (window.usersDatabase[uid]) return window.usersDatabase[uid];
-    const u = { id: uid, email: email || '', name: name || 'Kullanıcı', phone: '', address: '', bio: '', banned: false, createdAt: new Date().toISOString() };
+    const u = { id: uid, email: email || '', name: name || 'Kullanıcı', phone: phone || '', address: '', bio: '', banned: false, createdAt: new Date().toISOString() };
     window.usersDatabase[uid] = u;
     saveUsersDatabase();
     return u;
@@ -700,8 +710,8 @@ window.CATEGORY_ATTRS = {
             { key: 'education', label: 'education', type: 'select', options: (window.JOB_ATTRS && window.JOB_ATTRS.education) || ['Lise', 'Ön Lisans', 'Lisans', 'Yüksek Lisans', 'Doktora'] },
             { key: 'workMode', label: 'workMode', type: 'select', options: (window.JOB_ATTRS && window.JOB_ATTRS.workMode) || ['Ofis', 'Uzaktan', 'Hibrit'] },
             { key: 'company', label: 'company', type: 'text', placeholder: 'Şirket adı' },
-            { key: 'salaryMin', label: 'minSalary', type: 'number', placeholder: 'Min Maaş EUR' },
-            { key: 'salaryMax', label: 'salaryMaxLabel', type: 'number', placeholder: 'Max Maaş EUR' },
+            { key: 'salaryMin', label: 'minSalary', type: 'number', placeholder: 'Min Maaş MKD' },
+            { key: 'salaryMax', label: 'salaryMaxLabel', type: 'number', placeholder: 'Max Maaş MKD' },
             { key: 'benefits', label: 'benefitsLabel', type: 'text', placeholder: 'Yan haklar (sigorta, yemek vb.)' },
             { key: 'requirements', label: 'requirementsLabel', type: 'text', placeholder: 'Aranan nitelikler' }
         ]
@@ -742,15 +752,15 @@ function formatPrice(ad) {
 function updateCurrencyDisplay() {
     const r = window.exchangeRates || { EUR: 1, MKD: 61.5, TRY: 35 };
     const elt = el('currency-display');
-    if (elt) elt.textContent = '1 EUR = ' + (r.MKD || 61.5).toFixed(1) + ' MKD';
+    if (elt) elt.textContent = '1 MKD = ' + (1 / (r.MKD || 61.5)).toFixed(4) + ' EUR';
     const ratesDiv = el('currency-rates');
-    if (ratesDiv) ratesDiv.innerHTML = '<div class="rate-line">1 EUR = ' + (r.MKD || 61.5).toFixed(2) + ' MKD</div><div class="rate-line">1 EUR = ' + (r.TRY || 35).toFixed(2) + ' TRY</div>';
+    if (ratesDiv) ratesDiv.innerHTML = '<div class="rate-line">1 MKD = ' + (1/(r.MKD || 61.5)).toFixed(4) + ' EUR</div><div class="rate-line">1 EUR = ' + (r.MKD || 61.5).toFixed(2) + ' MKD</div>';
     updateCurrencyConverter();
 }
 function updateCurrencyConverter() {
     const r = window.exchangeRates || { EUR: 1, MKD: 61.5, TRY: 35 };
     const amount = parseFloat(el('currency-amount')?.value) || 1;
-    const from = el('currency-from')?.value || 'EUR';
+    const from = el('currency-from')?.value || 'MKD';
     const to = el('currency-to')?.value || 'EUR';
     const rateFrom = r[from] || 1;
     const rateTo = r[to] || 1;
@@ -767,9 +777,12 @@ function initCurrencyWidget() {
     updateCurrencyConverter();
     w.addEventListener('click', function(e) {
         e.stopPropagation();
+        if (e.target.closest('#currency-dropdown')) return;
         dd.classList.toggle('open');
     });
-    document.addEventListener('click', function() { dd?.classList.remove('open'); });
+    document.addEventListener('click', function(e) {
+        if (!e.target.closest('#currency-widget')) dd?.classList.remove('open');
+    });
     el('currency-amount')?.addEventListener('input', updateCurrencyConverter);
     el('currency-amount')?.addEventListener('change', updateCurrencyConverter);
     el('currency-from')?.addEventListener('change', updateCurrencyConverter);
@@ -804,6 +817,7 @@ function updateNotifBadge() {
     badge.style.display = unread > 0 ? 'inline' : 'none';
 }
 window.toggleNotifDropdown = function() {
+    if (window.innerWidth <= 768) { window.openMobileNotifModal?.(); return; }
     const dd = el('notif-dropdown');
     if (!dd) return;
     if (dd.style.display === 'block') { dd.style.display = 'none'; return; }
@@ -813,22 +827,33 @@ window.toggleNotifDropdown = function() {
         if (!e.target.closest('#notif-container')) { dd.style.display = 'none'; document.removeEventListener('click', closeNotif); }
     });
 };
+window.openMobileNotifModal = function() {
+    renderNotifList();
+    const titleEl = el('mobile-notif-title');
+    if (titleEl) titleEl.textContent = t('notifications') || 'Bildirimler';
+    const m = el('mobile-notif-modal');
+    if (m) { m.style.display = 'flex'; m.setAttribute('aria-hidden', 'false'); document.body.style.overflow = 'hidden'; }
+};
+window.closeMobileNotifModal = function() {
+    const m = el('mobile-notif-modal');
+    if (m) { m.style.display = 'none'; m.setAttribute('aria-hidden', 'true'); document.body.style.overflow = ''; }
+};
 function renderNotifList() {
-    const list = el('notif-list');
     const user = getCurrentUser();
-    if (!list || !user) return;
-    const items = (window.notifications || []).filter(n => n.userId === user.id).slice(-20).reverse();
-    if (items.length === 0) { list.innerHTML = '<p class="empty-state" style="padding:20px;color:var(--text-muted);">Bildirim yok</p>'; return; }
-    list.innerHTML = items.map(n => {
+    const items = user ? (window.notifications || []).filter(n => n.userId === user.id).slice(-20).reverse() : [];
+    const emptyHtml = '<p class="empty-state" style="padding:20px;color:var(--text-muted);">Bildirim yok</p>';
+    const itemHtml = items.length === 0 ? emptyHtml : items.map(n => {
         let extra = '';
-        if (n.type === 'message' && n.data?.convKey) extra = 'window.openMessagingModal(\'' + n.data.convKey + '\');';
-        else if (n.type === 'store_qa' && n.data?.storeId) extra = 'window.openStoreDetailWithQa && window.openStoreDetailWithQa(' + n.data.storeId + ');';
-        else if (n.type === 'search_alert' && n.data?.adIds && n.data.adIds[0]) extra = 'showListingPage();setTimeout(function(){window.ilanDetayAc && window.ilanDetayAc(' + n.data.adIds[0] + ');},400);';
-        return `<div class="notif-item ${n.read ? '' : 'unread'}" data-id="${n.id}" onclick="markNotifRead(${n.id});${extra}">
-            <strong>${escapeHtml(n.title)}</strong>
-            <p>${escapeHtml(n.body)}</p>
-        </div>`;
+        if (n.type === 'message' && n.data?.convKey) extra = 'window.openMessagingModal(\'' + n.data.convKey + '\');window.closeMobileNotifModal&&window.closeMobileNotifModal();';
+        else if (n.type === 'store_qa' && n.data?.storeId) extra = 'window.openStoreDetailWithQa&&window.openStoreDetailWithQa(' + n.data.storeId + ');window.closeMobileNotifModal&&window.closeMobileNotifModal();';
+        else if (n.type === 'search_alert' && n.data?.adIds && n.data.adIds[0]) extra = 'showListingPage();setTimeout(function(){window.ilanDetayAc&&window.ilanDetayAc(' + n.data.adIds[0] + ');},400);window.closeMobileNotifModal&&window.closeMobileNotifModal();';
+        return `<div class="notif-item ${n.read ? '' : 'unread'}" data-id="${n.id}" onclick="markNotifRead(${n.id});window.closeMobileNotifModal&&window.closeMobileNotifModal();${extra}" role="button" tabindex="0">` +
+            `<strong>${escapeHtml(n.title)}</strong><p>${escapeHtml(n.body)}</p></div>`;
     }).join('');
+    const list = el('notif-list');
+    if (list) list.innerHTML = itemHtml;
+    const mobList = el('mobile-notif-list');
+    if (mobList) mobList.innerHTML = itemHtml;
 }
 window.markNotifRead = function(id) {
     const n = (window.notifications || []).find(x => x.id === id);
@@ -1040,7 +1065,7 @@ function renderAdminReports() {
     const reports = (window.reportsDatabase || []).sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
     const reasonTxt = r => ({ spam: 'Spam', fake: 'Sahte', illegal: 'Yasadışı', other: 'Diğer' }[r] || r);
     if (reports.length === 0) {
-        list.innerHTML = '<p class="admin-empty">Şikayet bulunamadı</p>';
+        list.innerHTML = '<p class="admin-empty">' + t('noReports') + '</p>';
         return;
     }
     list.innerHTML = reports.map(r => {
@@ -1048,7 +1073,7 @@ function renderAdminReports() {
         const statusClass = r.status === 'resolved' ? 'report-resolved' : '';
         return `<div class="admin-report-row ${statusClass}" data-id="${r.id}">
             <div class="admin-report-info">
-                <strong>${escapeHtml(r.adTitle || 'İlan silinmiş')}</strong>
+                <strong>${escapeHtml(r.adTitle || t('adDeletedTitle'))}</strong>
                 <span>Şikayet: ${reasonTxt(r.reason)} · ${r.reporterName || 'Anonim'} · ${new Date(r.createdAt).toLocaleDateString('tr-TR')}</span>
                 ${r.note ? `<p class="report-note">${escapeHtml(r.note)}</p>` : ''}
             </div>
@@ -1066,7 +1091,7 @@ function renderAdminReports() {
 function adminResolveReport(reportId) {
     if (!isAdmin()) return;
     const r = (window.reportsDatabase || []).find(x => String(x.id) === String(reportId));
-    if (r) { r.status = 'resolved'; saveReports(); addAdminAudit('report_resolved', 'Rapor #' + reportId + ' çözüldü'); renderAdminReports(); renderAdminAnalytics(); showToast('saved', 'success', 2000); }
+    if (r) { r.status = 'resolved'; saveReports(); addAdminAudit('report_resolved', (typeof t('reportResolvedWithId') === 'string' ? t('reportResolvedWithId').replace('{0}', reportId) : t('reportResolved'))); renderAdminReports(); renderAdminAnalytics(); showToast('saved', 'success', 2000); }
 }
 
 function toWhatsAppPhone(phone) {
@@ -1081,7 +1106,7 @@ function toWhatsAppPhone(phone) {
 
 function getSellerAppWhatsAppMessage(app, isConfirm) {
     const ss = getSiteSettings();
-    const L = window.TRANSLATIONS?.[window.currentLang || 'tr'] || window.TRANSLATIONS?.tr || {};
+    const L = window.TRANSLATIONS?.[window.currentLang || 'mk'] || window.TRANSLATIONS?.mk || {};
     const catLabels = { kadin: L.storeCatKadin||'Kadın', erkek: L.storeCatErkek||'Erkek', 'anne-cocuk': L.storeCatAnne||'Anne & Çocuk', 'ev-yasam': L.storeCatEv||'Ev & Yaşam', supermarket: L.storeCatSuper||'Süpermarket', kozmetik: L.storeCatKozmetik||'Kozmetik', 'ayakkabi-canta': L.storeCatAyakkabi||'Ayakkabı & Çanta', elektronik: L.storeCatElektronik||'Elektronik', 'saat-aksesuar': L.storeCatSaat||'Saat & Aksesuar', spor: L.storeCatSpor||'Spor & Outdoor' };
     const companyTypeLabel = app.companyType === 'sahis' ? (L.sellerAppSahis||'Şahıs') : (L.sellerAppKurumsal||'Kurumsal');
     const city = (typeof tCity === 'function' ? tCity(app.district || app.city || '') : null) || app.district || app.city || '-';
@@ -1206,7 +1231,7 @@ function renderAdminPlatform() {
     const cntEl = el('admin-search-alerts-count');
     const listEl = el('admin-search-alerts-list');
     if (cntEl) cntEl.textContent = alerts.length + ' kayıtlı arama bildirimi';
-    if (listEl) listEl.innerHTML = alerts.length === 0 ? '<p class="admin-empty">Yok</p>' : alerts.map(a => {
+    if (listEl) listEl.innerHTML = alerts.length === 0 ? '<p class="admin-empty">' + t('none') + '</p>' : alerts.map(a => {
         const u = Object.values(window.usersDatabase || {}).find(u => u.id === a.userId);
         const s = a.state || {};
         return `<div style="padding:10px;border:1px solid var(--border-color);border-radius:8px;margin-bottom:8px;font-size:13px;">${escapeHtml(u?.email || u?.name || 'User '+a.userId)} · "${(s.search||'-')}" · ${s.city||'Tümü'} · ${s.category||'all'}</div>`;
@@ -1220,7 +1245,7 @@ function renderAdminPlatform() {
     const fsCnt = el('admin-fast-sellers-count');
     const fsList = el('admin-fast-sellers-list');
     if (fsCnt) fsCnt.textContent = fastSellers.length + ' hızlı satan satıcı';
-    if (fsList) fsList.innerHTML = fastSellers.length === 0 ? '<p class="admin-empty">Yok</p>' : fastSellers.slice(0, 20).map(([uid, c]) => {
+    if (fsList) fsList.innerHTML = fastSellers.length === 0 ? '<p class="admin-empty">' + t('none') + '</p>' : fastSellers.slice(0, 20).map(([uid, c]) => {
         const u = Object.values(window.usersDatabase || {}).find(x => x.id == uid);
         return `<div style="padding:10px;border:1px solid var(--border-color);border-radius:8px;margin-bottom:8px;font-size:13px;"><strong>${escapeHtml(u?.name || u?.email || 'User '+uid)}</strong> · ${c} satış (son 30 gün)</div>`;
     }).join('');
@@ -1230,7 +1255,7 @@ function renderAdminPlatform() {
     const rCnt = el('admin-ratings-summary');
     const rList = el('admin-ratings-list');
     if (rCnt) rCnt.textContent = allRatings.length + ' toplam değerlendirme';
-    if (rList) rList.innerHTML = allRatings.length === 0 ? '<p class="admin-empty">Yok</p>' : allRatings.slice(-15).reverse().map(r => {
+    if (rList) rList.innerHTML = allRatings.length === 0 ? '<p class="admin-empty">' + t('none') + '</p>' : allRatings.slice(-15).reverse().map(r => {
         const u = Object.values(window.usersDatabase || {}).find(x => x.id == r.userId || x.id == r.from);
         return `<div style="padding:10px;border:1px solid var(--border-color);border-radius:8px;margin-bottom:8px;font-size:13px;">★ ${r.stars || 5} · ${escapeHtml((r.comment||'').slice(0,60))} ${(r.comment||'').length > 60 ? '...' : ''} · ${u?.name || 'User'}</div>`;
     }).join('');
@@ -1244,13 +1269,14 @@ function renderAdminPlatform() {
     cutoff30.setDate(cutoff30.getDate() - 30);
     const ads = (window.adsDatabase || []).filter(a => (a.status||'approved')==='approved' && a.price > 0 && (!a.expiryAt || new Date(a.expiryAt) >= now) && new Date(a.createdAt) >= cutoff30);
     const byCat = {};
-    ads.forEach(a => { const c = a.subCategory || a.category || 'Diğer'; if (!byCat[c]) byCat[c] = []; byCat[c].push(priceToEur(a.price, a.currency)); });
+    const r = window.exchangeRates || { EUR: 1, MKD: 61.5, TRY: 35 };
+    ads.forEach(a => { const c = a.subCategory || a.category || 'Diğer'; if (!byCat[c]) byCat[c] = []; byCat[c].push(priceToEur(a.price, a.currency) * (r.MKD || 61.5)); });
     const trends = Object.entries(byCat).filter(([,prices]) => prices.length >= 3).map(([cat, prices]) => ({ cat, avg: Math.round(prices.reduce((a,b)=>a+b,0)/prices.length), count: prices.length })).sort((a,b)=>b.count - a.count).slice(0, 12);
     const ptEl = el('admin-price-trends');
-    if (ptEl) ptEl.innerHTML = trends.length === 0 ? '<p class="admin-empty">Yeterli veri yok</p>' : trends.map(t => `<div style="padding:8px;border:1px solid var(--border-color);border-radius:8px;margin-bottom:6px;font-size:13px;"><strong>${escapeHtml(t.cat)}</strong> · Ort ~${t.avg} EUR (${t.count} ilan)</div>`).join('');
+    if (ptEl) ptEl.innerHTML = trends.length === 0 ? '<p class="admin-empty">' + t('insufficientData') + '</p>' : trends.map(t => `<div style="padding:8px;border:1px solid var(--border-color);border-radius:8px;margin-bottom:6px;font-size:13px;"><strong>${escapeHtml(t.cat)}</strong> · Ort ~${t.avg} MKD (${t.count} ilan)</div>`).join('');
 
     const dupListEl = el('admin-duplicates-list');
-    if (dupListEl) dupListEl.innerHTML = '<p class="admin-empty" id="admin-dup-placeholder">"Tara" ile kontrol et</p>';
+    if (dupListEl) dupListEl.innerHTML = '<p class="admin-empty" id="admin-dup-placeholder">' + t('adminScanPlaceholder') + '</p>';
     if (!el('admin-scan-duplicates')?.dataset.bound) {
         el('admin-scan-duplicates')?.addEventListener('click', function() {
             const dupListEl = el('admin-duplicates-list');
@@ -1260,7 +1286,7 @@ function renderAdminPlatform() {
                 const similar = findSimilarExistingAds(ad.title, ad.category, ad.subCategory, ad.id);
                 if (similar.length >= 2) found.push({ ad, similar });
             });
-            dupListEl.innerHTML = found.length === 0 ? '<p class="admin-empty">Tekrarlayan ilan bulunamadı</p>' : found.slice(0,15).map(({ ad, similar }) => `<div style="padding:8px;border:1px solid var(--border-color);border-radius:8px;margin-bottom:6px;font-size:12px;"><strong>${escapeHtml((ad.title||'').slice(0,30))}</strong> · ${similar.length} benzer · <a href="#" onclick="window.ilanDetayAc(${ad.id}); return false;">Gör</a></div>`).join('');
+            dupListEl.innerHTML = found.length === 0 ? '<p class="admin-empty">' + t('noDuplicateAds') + '</p>' : found.slice(0,15).map(({ ad, similar }) => `<div style="padding:8px;border:1px solid var(--border-color);border-radius:8px;margin-bottom:6px;font-size:12px;"><strong>${escapeHtml((ad.title||'').slice(0,30))}</strong> · ${similar.length} benzer · <a href="#" onclick="window.ilanDetayAc(${ad.id}); return false;">Gör</a></div>`).join('');
         });
         if (el('admin-scan-duplicates')) el('admin-scan-duplicates').dataset.bound = '1';
     }
@@ -1280,7 +1306,7 @@ function renderAdminPlatform() {
             a.download = 'arama_kayitlari_' + new Date().toISOString().slice(0,10) + '.csv';
             a.click();
             URL.revokeObjectURL(a.href);
-            showToast('CSV indirildi', 'success', 1500);
+            showToast(t('csvDownloaded'), 'success', 1500);
         });
         if (el('admin-export-search-alerts')) el('admin-export-search-alerts').dataset.bound = '1';
     }
@@ -1288,7 +1314,7 @@ function renderAdminPlatform() {
     const auditList = el('admin-audit-list');
     if (auditList) {
         const log = (window.adminAuditLog || []).slice(-30).reverse();
-        auditList.innerHTML = log.length === 0 ? '<p class="admin-empty">Henüz kayıt yok</p>' : log.map(l => `<div style="padding:6px;border-bottom:1px solid var(--border-color);font-size:12px;"><strong>${escapeHtml(l.action)}</strong> · ${l.details || '-'} · ${l.when ? new Date(l.when).toLocaleString('tr-TR') : ''}</div>`).join('');
+        auditList.innerHTML = log.length === 0 ? '<p class="admin-empty">' + t('noAuditYet') + '</p>' : log.map(l => `<div style="padding:6px;border-bottom:1px solid var(--border-color);font-size:12px;"><strong>${escapeHtml(l.action)}</strong> · ${l.details || '-'} · ${l.when ? new Date(l.when).toLocaleString('tr-TR') : ''}</div>`).join('');
     }
 }
 
@@ -1296,7 +1322,7 @@ function renderAdminStores() {
     const list = el('admin-stores-list');
     if (!list) return;
     const stores = (window.storesDatabase || []).slice().sort((a,b) => (b.id||0) - (a.id||0));
-    if (stores.length === 0) { list.innerHTML = '<p class="admin-empty">Henüz mağaza yok</p>'; return; }
+    if (stores.length === 0) { list.innerHTML = '<p class="admin-empty">' + t('noStores') + '</p>'; return; }
     const L = window.TRANSLATIONS?.[window.currentLang] || {};
     list.innerHTML = stores.map(s => {
         const owner = s.ownerId ? Object.values(window.usersDatabase || {}).find(u => u.id === s.ownerId) : null;
@@ -1329,7 +1355,7 @@ function renderAdminProductRequests() {
     const pending = (window.storeProductRequests || []).filter(r => r.status === 'pending');
     const badge = el('admin-product-requests-badge');
     if (badge) badge.textContent = pending.length;
-    if (pending.length === 0) { list.innerHTML = '<p class="admin-empty">Bekleyen ürün talebi yok</p>'; return; }
+    if (pending.length === 0) { list.innerHTML = '<p class="admin-empty">' + t('noPendingProductRequests') + '</p>'; return; }
     list.innerHTML = pending.map(r => {
         const store = (window.storesDatabase || []).find(s => s.id === r.storeId);
         const owner = store && store.ownerId ? Object.values(window.usersDatabase || {}).find(u => u.id === store.ownerId) : null;
@@ -1344,8 +1370,8 @@ function renderAdminProductRequests() {
                     ${owner ? ' · <span>' + escapeHtml(owner.email || owner.name || '') + '</span>' : ''}
                 </div>
                 <div style="font-size:12px;display:flex;flex-wrap:wrap;gap:12px 20px;">
-                    <span><strong>Fiyat:</strong> ${(p.price||0)} EUR</span>
-                    ${(p.originalPrice && p.originalPrice > (p.price||0)) ? '<span><strong>Eski:</strong> ' + p.originalPrice + ' EUR</span>' : ''}
+                    <span><strong>Fiyat:</strong> ${(p.price||0)} MKD</span>
+                    ${(p.originalPrice && p.originalPrice > (p.price||0)) ? '<span><strong>Eski:</strong> ' + p.originalPrice + ' MKD</span>' : ''}
                     ${p.category ? '<span><strong>Kategori:</strong> ' + escapeHtml(p.category) + '</span>' : ''}
                     ${p.material ? '<span><strong>Materyal:</strong> ' + escapeHtml(p.material) + '</span>' : ''}
                     ${p.color ? '<span><strong>Renk:</strong> ' + escapeHtml(p.color) + '</span>' : ''}
@@ -1381,7 +1407,7 @@ window.approveStoreProductRequest = function(reqId) {
     renderAdminProductRequests();
     const badge = el('admin-product-requests-badge');
     if (badge) badge.textContent = (window.storeProductRequests || []).filter(r => r.status === 'pending').length;
-    showToast('Ürün talebi onaylandı', 'success', 2000);
+    showToast(t('productRequestApproved'), 'success', 2000);
 };
 
 window.rejectStoreProductRequest = function(reqId) {
@@ -1393,7 +1419,7 @@ window.rejectStoreProductRequest = function(reqId) {
     renderAdminProductRequests();
     const badge = el('admin-product-requests-badge');
     if (badge) badge.textContent = (window.storeProductRequests || []).filter(r => r.status === 'pending').length;
-    showToast('Ürün talebi reddedildi', 'info', 2000);
+    showToast(t('productRequestRejected'), 'info', 2000);
 };
 
 function updateAdminStats() {
@@ -1407,7 +1433,7 @@ function updateAdminStats() {
     const nu = el('admin-total-users'); if (nu) nu.textContent = users;
     const nc = el('admin-total-cat'); if (nc) nc.textContent = cats.size;
     const nci = el('admin-total-city'); if (nci) nci.textContent = cities.size;
-    const ncr = el('admin-total-credits'); if (ncr) ncr.textContent = totalCredits + ' EUR';
+    const ncr = el('admin-total-credits'); if (ncr) ncr.textContent = totalCredits + ' MKD';
     const pending = (window.adsDatabase || []).filter(a => (a.status || '') === 'pending').length;
     const badge = el('admin-pending-badge'); if (badge) badge.textContent = pending;
 }
@@ -1418,7 +1444,7 @@ function renderAdminPending() {
     if (!list) return;
     const pending = (window.adsDatabase || []).filter(a => (a.status || '') === 'pending').sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
     if (pending.length === 0) {
-        list.innerHTML = '<p class="admin-empty">Bekleyen ilan yok</p>';
+        list.innerHTML = '<p class="admin-empty">' + t('noPendingAds') + '</p>';
         return;
     }
     list.innerHTML = pending.map(ad => {
@@ -1497,7 +1523,7 @@ function renderAdminAds() {
     if (search) ads = ads.filter(a => (a.title + ' ' + (a.description||'')).toLowerCase().includes(search));
     if (!list) return;
     if (ads.length === 0) {
-        list.innerHTML = '<p class="admin-empty">İlan bulunamadı</p>';
+        list.innerHTML = '<p class="admin-empty">' + t('noAdsFound') + '</p>';
         return;
     }
     const bulkDel = el('admin-bulk-delete');
@@ -1600,13 +1626,13 @@ function renderAdminUsers() {
     if (search) users = users.filter(u => (u.name + ' ' + u.email).toLowerCase().includes(search));
     users.sort((a,b) => (b.id || 0) - (a.id || 0));
     if (!list) return;
-    if (users.length === 0) { list.innerHTML = '<p class="admin-empty">Kullanıcı bulunamadı</p>'; return; }
+    if (users.length === 0) { list.innerHTML = '<p class="admin-empty">' + t('userNotFound') + '</p>'; return; }
     list.innerHTML = users.map(u => `
         <div class="admin-user-row">
             <div class="admin-user-info">
                 <strong>${escapeHtml(u.name || 'İsimsiz')}</strong>
                 <span>${escapeHtml(u.email || '-')} · ID: ${u.id}</span>
-                <span>Kredi: ${u.credit} EUR ${u.verifiedUntil ? '· Onaylı: ' + u.verifiedUntil : ''} ${u.banned ? '· <span class="badge-banned">ENGELLİ</span>' : ''}</span>
+                <span>Kredi: ${u.credit} MKD ${u.verifiedUntil ? '· Onaylı: ' + u.verifiedUntil : ''} ${u.banned ? '· <span class="badge-banned">ENGELLİ</span>' : ''}</span>
             </div>
             <button type="button" class="admin-edit-btn" data-user-id="${u.id}"><i class="fa-solid fa-pen"></i></button>
         </div>
@@ -1622,7 +1648,7 @@ window.openAdminUserModal = function(userId) {
     const db = window.usersDatabase || {};
     var u = db[uidNum] ?? db[String(uidNum)] ?? db[userId] ?? db[String(userId)];
     if (!u) u = Object.values(db).find(function(x) { var xid = x && (x.id || x.userId); return xid == userId || xid == uidNum || String(xid) === String(userId) || Number(xid) === uidNum; });
-    if (!u) { showToast('Kullanıcı bulunamadı', 'warning', 2000); return; }
+    if (!u) { showToast(t('userNotFound'), 'warning', 2000); return; }
     const modal = el('admin-user-modal');
     if (!modal) return;
     document.body.appendChild(modal);
@@ -2025,18 +2051,18 @@ window.showListingPage = function (category, city) {
 function refreshHomepageContent() {
     const grid = el('homepage-category-grid');
     if (!grid) return;
-    const L = window.TRANSLATIONS?.[window.currentLang] || window.TRANSLATIONS?.tr || {};
+    const L = window.TRANSLATIONS?.[window.currentLang] || window.TRANSLATIONS?.mk || {};
     const cats = (window.CATEGORIES_TREE || []).filter(g => g.id !== 'all');
     grid.innerHTML = cats.map(g => {
         const label = L[g.labelKey] || g.labelKey;
-        return `<a href="#" class="homepage-cat-item" data-homepage-cat="${g.id}"><i class="fa-solid ${g.icon || 'fa-folder'}"></i>${label}</a>`;
+        return `<a href="javascript:void(0)" class="homepage-cat-item" data-homepage-cat="${g.id}"><i class="fa-solid ${g.icon || 'fa-folder'}"></i>${label}</a>`;
     }).join('');
     const regions = el('homepage-regions');
     if (regions) {
         const allTxt = t('allMacedonia') || 'Tüm Makedonya';
-        const opts = sehirListesi.map(c => `<a href="#" class="region-link region-btn" data-city="${c}">${tCity(c) || c}</a>`).join('');
+        const opts = sehirListesi.map(c => `<a href="javascript:void(0)" class="region-link region-btn" data-city="${c}">${tCity(c) || c}</a>`).join('');
         const linksWrap = regions.querySelector('.homepage-regions-links');
-        if (linksWrap) linksWrap.innerHTML = '<a href="#" class="region-link region-btn active" data-city="">' + allTxt + '</a>' + opts;
+        if (linksWrap) linksWrap.innerHTML = '<a href="javascript:void(0)" class="region-link region-btn active" data-city="">' + allTxt + '</a>' + opts;
         const selMobile = el('homepage-regions-select-mobile');
         if (selMobile) {
             selMobile.innerHTML = '<option value="">' + allTxt + '</option>' + sehirListesi.map(c => '<option value="' + c + '">' + (tCity(c) || c) + '</option>').join('');
@@ -2310,8 +2336,11 @@ function filterAdsByState(state) {
         const matchCats = grp ? [grp.id, ...(grp.sub || [])] : [category];
         ads = ads.filter(a => matchCats.includes(a.category) || matchCats.includes(a.subCategory));
     }
-    const minP = parseFloat(state.minPrice) || 0, maxP = parseFloat(state.maxPrice) || Infinity;
-    ads = ads.filter(a => { const eur = priceToEur(a.price, a.currency); return eur >= minP && (maxP === Infinity || eur <= maxP); });
+    const r = window.exchangeRates || { EUR: 1, MKD: 61.5, TRY: 35 };
+    const minMkd = parseFloat(state.minPrice) || 0, maxMkd = parseFloat(state.maxPrice) || Infinity;
+    const minEur = minMkd / (r.MKD || 61.5);
+    const maxEur = maxMkd === Infinity ? Infinity : maxMkd / (r.MKD || 61.5);
+    ads = ads.filter(a => { const eur = priceToEur(a.price, a.currency); return eur >= minEur && (maxEur === Infinity || eur <= maxEur); });
     if (state.city) ads = ads.filter(a => a.city === state.city || (a.cities && a.cities.includes(state.city)));
     if (state.district) ads = ads.filter(a => a.district === state.district);
     if (state.search) {
@@ -2332,12 +2361,12 @@ window.toggleSearchAlert = function() {
     if (idx >= 0) {
         window.searchAlerts.splice(idx, 1);
         saveSearchAlerts();
-        showToast('Arama bildirimi kaldırıldı', 'info', 1500);
+        showToast(t('searchAlertRemoved'), 'info', 1500);
     } else {
         const ids = filterAdsByState(state);
         window.searchAlerts.push({ id: 'sa'+Date.now(), userId: user.id, state, lastSeenIds: ids, createdAt: new Date().toISOString() });
         saveSearchAlerts();
-        showToast('Arama bildirimi eklendi', 'success', 1500);
+        showToast(t('searchAlertAdded'), 'success', 1500);
     }
     updateSearchAlertButton();
 };
@@ -2372,8 +2401,11 @@ function applyFilters() {
     const konutBlock = el('konut-filters');
     if (otoBlock && otoBlock.style.display !== 'none') syncListingFiltersFromOto();
     else if (konutBlock && konutBlock.style.display !== 'none') syncListingFiltersFromKonut();
-    const minPrice = parseFloat(el('minPrice')?.value) || 0;
-    const maxPrice = parseFloat(el('maxPrice')?.value) || Infinity;
+    const r = window.exchangeRates || { EUR: 1, MKD: 61.5, TRY: 35 };
+    const minMkd = parseFloat(el('minPrice')?.value) || 0;
+    const maxMkd = parseFloat(el('maxPrice')?.value) || Infinity;
+    const minPrice = minMkd / (r.MKD || 61.5);
+    const maxPrice = maxMkd === Infinity ? Infinity : maxMkd / (r.MKD || 61.5);
     const city = el('sehir-select')?.value;
     const district = el('ilce-select')?.value;
     let searchTerm = (el('searchInput')?.value || '').trim();
@@ -2544,7 +2576,7 @@ function renderFilterChips() {
     }
     const minP = el('minPrice')?.value;
     const maxP = el('maxPrice')?.value;
-    if (minP || maxP) chips.push({ key: 'price', label: (minP || '0') + ' - ' + (maxP || '∞') + ' EUR', clear: () => { el('minPrice').value = ''; el('maxPrice').value = ''; applyFilters(); } });
+    if (minP || maxP) chips.push({ key: 'price', label: (minP || '0') + ' - ' + (maxP || '∞') + ' MKD', clear: () => { el('minPrice').value = ''; el('maxPrice').value = ''; applyFilters(); } });
     const city = el('sehir-select')?.value;
     if (city) chips.push({ key: 'city', label: tCity(city), clear: () => { el('sehir-select').value = ''; initLocationSelects(); applyFilters(); } });
     const q = window.homepageQuickFilters;
@@ -2776,7 +2808,8 @@ function getCategoryAvgPrice(category, subCategory) {
         (a.category === category || a.subCategory === subCategory)
     );
     if (ads.length < 3) return null;
-    const sum = ads.reduce((s, a) => s + (parseFloat(a.price) || 0) * (a.currency === 'MKD' ? 0.016 : a.currency === 'TRY' ? 0.029 : 1), 0);
+    const r = window.exchangeRates || { EUR: 1, MKD: 61.5, TRY: 35 };
+    const sum = ads.reduce((s, a) => s + priceToEur(parseFloat(a.price) || 0, a.currency) * (r.MKD || 61.5), 0);
     return Math.round(sum / ads.length);
 }
 function findSimilarExistingAds(title, category, subCategory, excludeId) {
@@ -2904,7 +2937,7 @@ window.ilanDetayAc = function (adId) {
                 <button type="button" class="detail-btn detail-btn-outline" onclick="window.shareAdViaQR(${ad.id}); return false;"><i class="fa-solid fa-qrcode"></i> QR Kod</button>
                 <button type="button" class="detail-btn detail-btn-outline" onclick="window.toggleCompare(${ad.id}, event); renderCompareBar(); return false;"><i class="fa-solid fa-code-compare"></i> ${(window.compareList || []).includes(ad.id) ? 'Karşılaştırmadan Çıkar' : 'Karşılaştırmaya Ekle'}</button>
             </div>
-            ${(() => { const avg = getCategoryAvgPrice(ad.category, ad.subCategory); return avg ? `<p class="category-avg-price"><i class="fa-solid fa-chart-line"></i> Bu kategoride son 30 gün ortalama: ~${avg} EUR</p>` : ''; })()}
+            ${(() => { const avg = getCategoryAvgPrice(ad.category, ad.subCategory); return avg ? `<p class="category-avg-price"><i class="fa-solid fa-chart-line"></i> Bu kategoride son 30 gün ortalama: ~${avg} MKD</p>` : ''; })()}
             ${(ad.priceHistory && ad.priceHistory.length > 1) ? `<p class="price-history"><strong>Fiyat geçmişi:</strong> ${ad.priceHistory.slice(-5).reverse().map(h => formatPrice({price:h.price,currency:h.currency}) + ' (' + (h.date ? new Date(h.date).toLocaleDateString('tr-TR') : '') + ')').join(' → ')}</p>` : ''}
             ${getSimilarAdsHtml(ad)}
             ${ad.city && cityCoords[ad.city] ? `<div id="map-container" class="detail-map-bottom"><iframe width="100%" height="220" frameborder="0" style="border:0;border-radius:10px;" src="https://www.openstreetmap.org/export/embed.html?bbox=${cityCoords[ad.city][1]-0.15}%2C${cityCoords[ad.city][0]-0.08}%2C${cityCoords[ad.city][1]+0.15}%2C${cityCoords[ad.city][0]+0.08}&layer=mapnik&marker=${cityCoords[ad.city][0]}%2C${cityCoords[ad.city][1]}"></iframe></div>` : ''}
@@ -3091,7 +3124,7 @@ window.shareAdViaQR = function(adId) {
         m = document.createElement('div');
         m.id = 'qr-modal';
         m.className = 'modern-modal';
-        m.innerHTML = '<div class="modal-content" style="max-width:320px;text-align:center;"><span class="close-btn" onclick="this.closest(\'.modern-modal\').style.display=\'none\'">&times;</span><h3>QR Kod</h3><p style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">İlanı paylaşmak için QR kodu tarayın</p><img id="qr-modal-img" src="" alt="QR" style="width:256px;height:256px;border:1px solid var(--border-color);border-radius:12px;"></div>';
+        m.innerHTML = '<div class="modal-content" style="max-width:320px;text-align:center;"><span class="close-btn" onclick="this.closest(\'.modern-modal\').style.display=\'none\'">&times;</span><h3>QR Kod</h3><p style="font-size:13px;color:var(--text-muted);margin-bottom:12px;">' + t('qrScanToShare') + '</p><img id="qr-modal-img" src="" alt="QR" style="width:256px;height:256px;border:1px solid var(--border-color);border-radius:12px;"></div>';
         document.body.appendChild(m);
     }
     el('qr-modal-img').src = qrUrl;
@@ -3153,13 +3186,13 @@ window.toggleCompare = function(adId, e) {
     const idx = window.compareList.indexOf(adId);
     if (idx >= 0) {
         window.compareList.splice(idx, 1);
-        showToast('Karşılaştırmadan çıkarıldı', 'info', 1500);
+        showToast(t('compareRemoved'), 'info', 1500);
     } else if (window.compareList.length >= 3) {
-        showToast('En fazla 3 ilan karşılaştırabilirsiniz', 'warning', 2000);
+        showToast(t('maxCompare3'), 'warning', 2000);
         return;
     } else {
         window.compareList.push(adId);
-        showToast('Karşılaştırmaya eklendi', 'success', 1500);
+        showToast(t('compareAdded'), 'success', 1500);
     }
     saveCompareList();
     renderCompareBar();
@@ -3224,8 +3257,12 @@ function updateProfilePage(user) {
     el('profile-ad-count').textContent = myAds.length;
     el('profile-fav-count').textContent = window.favorites.length;
     const credit = (window.userCredits[user.id] || 0);
-    el('profile-credit-disp').textContent = credit + ' EUR';
-    el('current-credit').textContent = credit + ' EUR';
+    el('profile-credit-disp').textContent = credit + ' MKD';
+    el('current-credit').textContent = credit + ' MKD';
+    const tabPayment = el('tab-btn-payment');
+    const creditStat = el('profile-credit-stat');
+    if (tabPayment) tabPayment.style.display = isAdmin() ? '' : 'none';
+    if (creditStat) creditStat.style.display = isAdmin() ? '' : 'none';
     el('profile-bio').value = user.bio || '';
     el('profile-phone').value = user.phone || '';
     el('profile-address').value = user.address || '';
@@ -3285,7 +3322,7 @@ function showProductQuickView(productId) {
     const prod = (window.storeProducts || []).find(p => p.id === productId);
     if (!prod) return;
     const L = window.TRANSLATIONS?.[window.currentLang] || {};
-    showToast(prod.title + ' - ' + (prod.price||0) + ' EUR', 'info');
+    showToast(prod.title + ' - ' + (prod.price||0) + ' MKD', 'info');
 }
 
 function renderAlsatProductCard(p, L) {
@@ -3293,8 +3330,8 @@ function renderAlsatProductCard(p, L) {
     const dPct = op && p.originalPrice ? Math.round(100 - (p.price||0) / p.originalPrice * 100) : (p.discountPercent || 0);
     const discountBadge = (op && dPct > 0) ? '<span class="product-badge-best">-%' + dPct + '</span>' : (p.bestSeller ? '<span class="product-badge-best">EN ÇOK SATAN</span>' : (p.goodPrice ? '<span class="product-badge-good">İYİ FİYAT</span>' : ''));
     const favCount = (p.favoritedCount || 0) > 0 ? '<p class="product-fav-count">' + p.favoritedCount + ' ' + (L.favorited || 'kişi favoriledi!') + '</p>' : '';
-    const origPrice = op ? '<span class="product-original">' + p.originalPrice + ' EUR</span>' : '';
-    const priceSpan = op ? '<span class="product-price product-price-discount">' + (p.price||0) + ' EUR</span>' : '<span class="product-price">' + (p.price||0) + ' EUR</span>';
+    const origPrice = op ? '<span class="product-original">' + p.originalPrice + ' MKD</span>' : '';
+    const priceSpan = op ? '<span class="product-price product-price-discount">' + (p.price||0) + ' MKD</span>' : '<span class="product-price">' + (p.price||0) + ' MKD</span>';
     const freeShip = p.freeShipping ? '<p class="product-shipping"><i class="fa-solid fa-truck"></i> ' + (L.freeShipping || 'Kargo Bedava') + '</p>' : '';
     const isFav = (window.storeFavorites || []).includes(p.id);
     const favIcon = isFav ? 'fa-solid fa-heart' : 'fa-regular fa-heart';
@@ -3547,9 +3584,9 @@ window.openProductDetail = function (productId) {
     const orig = prod.originalPrice && prod.originalPrice > (prod.price || 0);
     const priceEl = el('product-detail-price');
     const origEl = el('product-detail-original');
-    priceEl.textContent = (prod.price || 0) + ' EUR';
+    priceEl.textContent = (prod.price || 0) + ' MKD';
     priceEl.classList.toggle('price-discounted', !!orig);
-    origEl.textContent = orig ? prod.originalPrice + ' EUR' : '';
+    origEl.textContent = orig ? prod.originalPrice + ' MKD' : '';
     origEl.style.display = orig ? '' : 'none';
     const discEl = el('product-detail-discount');
     discEl.textContent = (prod.discountPercent && prod.discountPercent > 0) ? ' Sepette %' + prod.discountPercent + ' indirim' : '';
@@ -3703,7 +3740,7 @@ window.openStoreDetail = function (storeId, opts) {
             const op = p.originalPrice && p.originalPrice > (p.price||0);
             const dPct = op && p.originalPrice ? Math.round(100 - (p.price||0) / p.originalPrice * 100) : (p.discountPercent || 0);
             const discountBadge = (op && dPct > 0) ? '<span class="store-product-discount">-%' + dPct + '</span>' : '';
-            const origPrice = op ? '<span class="store-product-original">' + p.originalPrice + ' EUR</span>' : '';
+            const origPrice = op ? '<span class="store-product-original">' + p.originalPrice + ' MKD</span>' : '';
             const ratingHtml = (p.rating !== undefined) ? '<span class="store-product-rating"><i class="fa-solid fa-star" style="color:#ffc107;font-size:11px;"></i> ' + (p.rating||0).toFixed(1) + (p.reviewCount ? ' <span style="font-size:11px;color:var(--text-muted);">(' + p.reviewCount + ')</span>' : '') + '</span>' : '';
             const badges = [p.freeShipping && '<span class="store-product-badge freeship"><i class="fa-solid fa-truck"></i></span>', p.fastShipping && '<span class="store-product-badge fastship"><i class="fa-solid fa-bolt"></i></span>'].filter(Boolean).join('');
             const ownerBtns = (isOwner || adminMode) ? `<button type="button" class="store-product-edit-btn" data-product-id="${p.id}" title="${L.edit || 'Düzenle'}"><i class="fa-solid fa-pen"></i></button>` : '';
@@ -3714,7 +3751,7 @@ window.openStoreDetail = function (storeId, opts) {
                     <div class="store-product-img-wrap" style="position:relative;height:140px;background:url(${p.image||''}) center/cover;">${discountBadge}${badges}</div>
                     <div style="padding:12px;">
                         <h4 style="margin:0 0 6px;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(p.title)}</h4>
-                        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px;">${origPrice}<span style="font-weight:700;color:${op ? '#dc3545' : 'var(--primary)'};">${(p.price||0)} EUR</span></div>
+                        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:4px;">${origPrice}<span style="font-weight:700;color:${op ? '#dc3545' : 'var(--primary)'};">${(p.price||0)} MKD</span></div>
                         ${ratingHtml}
                     </div>
                 </a>
@@ -3861,7 +3898,7 @@ window.openStoreDetail = function (storeId, opts) {
             window.storePhotoRequests = window.storePhotoRequests || [];
             window.storePhotoRequests.push({ id: Date.now(), storeId, type: photoType, newUrl: dataUrl, status: 'pending', requestedBy: user?.id, createdAt: new Date().toISOString() });
             saveStorePhotoRequests();
-            showToast('Talep gönderildi. Admin onayından sonra güncellenecektir.', 'info', 3000);
+            showToast(t('requestSentUpdate'), 'info', 3000);
             openStoreDetail(storeId);
         };
         r.readAsDataURL(file);
@@ -3893,8 +3930,8 @@ window.openAddProductPage = function(storeId) {
     }
     window.addProductPageStoreId = storeId;
     el('add-product-page-edit-id').value = '';
-    el('add-product-page-title').textContent = 'Ürün Ekle';
-    el('add-product-page-submit-txt').textContent = 'Ürün Ekle';
+    el('add-product-page-title').textContent = t('addProduct');
+    el('add-product-page-submit-txt').textContent = t('addProduct');
     document.querySelectorAll('.profile-page-container').forEach(p => p.style.display = 'none');
     el('add-product-page').style.display = 'block';
     el('add-product-page-store-id').value = storeId;
@@ -3919,7 +3956,7 @@ window.openEditProductPage = function(productId) {
     window.addProductPageStoreId = prod.storeId;
     el('add-product-page-edit-id').value = productId;
     el('add-product-page-title') && (el('add-product-page-title').textContent = 'Ürün Düzenle');
-    el('add-product-page-submit-txt') && (el('add-product-page-submit-txt').textContent = 'Kaydet');
+    el('add-product-page-submit-txt') && (el('add-product-page-submit-txt').textContent = t('save'));
     document.querySelectorAll('.profile-page-container').forEach(p => p.style.display = 'none');
     el('add-product-page').style.display = 'block';
     el('add-product-page-store-id').value = prod.storeId;
@@ -3958,7 +3995,7 @@ window.openCartPage = function() {
                 const qty = item.qty || 1;
                 return `<div class="cart-item-row" data-product-id="${prod.id}" style="display:flex;align-items:center;gap:16px;padding:16px;background:var(--card-bg);border:1px solid var(--border-color);border-radius:12px;margin-bottom:12px;">
                     <div style="width:80px;height:80px;background:url(${prod.image||''}) center/cover;border-radius:8px;flex-shrink:0;"></div>
-                    <div style="flex:1;"><h4 style="margin:0 0 4px;">${escapeHtml(prod.title)}</h4><p style="margin:0;color:var(--primary);font-weight:700;">${(prod.price||0)} EUR ${qty > 1 ? 'x ' + qty : ''}</p></div>
+                    <div style="flex:1;"><h4 style="margin:0 0 4px;">${escapeHtml(prod.title)}</h4><p style="margin:0;color:var(--primary);font-weight:700;">${(prod.price||0)} MKD ${qty > 1 ? 'x ' + qty : ''}</p></div>
                     <button type="button" class="cart-remove-btn" data-product-id="${prod.id}" title="${L.remove||'Kaldır'}"><i class="fa-solid fa-trash-can"></i></button>
                 </div>`;
             }).filter(Boolean).join('');
@@ -3975,7 +4012,7 @@ window.openCartPage = function() {
             const prod = (window.storeProducts || []).find(p => p.id === item.productId);
             return sum + ((prod?.price || 0) * (item.qty || 1));
         }, 0);
-        if (summaryEl) { summaryEl.style.display = 'block'; el('cart-total').textContent = total.toFixed(2) + ' EUR'; }
+        if (summaryEl) { summaryEl.style.display = 'block'; el('cart-total').textContent = total.toFixed(0) + ' MKD'; }
     }
     el('cart-checkout-btn').onclick = () => showToast(L.goToCheckout || 'Ödeme sayfası yakında', 'info');
 };
@@ -4075,7 +4112,7 @@ function openMyAdsPage() {
                     <p>${tCity(ad.city)}</p>
                     ${statsHtml}
                     <div class="my-ad-actions">
-                        <button class="ad-action-btn ad-bump-btn" data-id="${ad.id}" ${bumpDisabled ? 'disabled' : ''}>Yukarı Taşı (${getSiteSettings().bumpPrice} EUR)</button>
+                        <button class="ad-action-btn ad-bump-btn" data-id="${ad.id}" ${bumpDisabled ? 'disabled' : ''}>Yukarı Taşı (${getSiteSettings().bumpPrice} MKD)</button>
                         <button class="ad-action-btn ad-edit-btn" data-id="${ad.id}">${t('edit')}</button>
                         <button class="ad-action-btn ad-delete-btn" onclick="deleteAd(${ad.id})">${t('delete')}</button>
                     </div>
@@ -4178,7 +4215,7 @@ function maybeShowSoldSurvey(user) {
             saveSoldSurveyDone();
             m.style.display = 'none';
             openMyAdsPage();
-            showToast('Teşekkürler! İlan satıldı olarak işaretlendi.', 'success', 2000);
+            showToast(t('adMarkedSold'), 'success', 2000);
         };
         m.querySelector('#sold-survey-no').onclick = () => {
             window.soldSurveyDone.push(parseInt(m.dataset.adId));
@@ -4188,7 +4225,7 @@ function maybeShowSoldSurvey(user) {
         };
     }
     m.dataset.adId = toSurvey.id;
-    m.querySelector('#sold-survey-question').textContent = '"' + toSurvey.title + '" ilanı satıldı mı?';
+    m.querySelector('#sold-survey-question').textContent = '"' + toSurvey.title + '" ' + (t('adSoldSurvey') || 'ilanı satıldı mı?');
     m.style.display = 'flex';
 }
 
@@ -4373,7 +4410,7 @@ window.sendMessageToAd = function (adId) {
             messages: [], lastMsgTime: 0
         };
         saveConversations();
-        addNotification(sellerId, 'message', 'Yeni mesaj', user.name + ' ' + ad.title + ' ilanı hakkında mesaj gönderdi.', { convKey, adId });
+        addNotification(sellerId, 'message', t('newMessage'), user.name + ' ' + ad.title + ' ' + (t('msgAboutAd') || 'ilanı hakkında mesaj gönderdi.'), { convKey, adId });
     }
     window.closeDetailModal();
     window.openMessagingModal(convKey);
@@ -4395,7 +4432,7 @@ function sendMessage() {
     input.value = '';
     selectConversation(convKey);
     const otherId = c.sellerId === user.id ? c.buyerId : c.sellerId;
-    addNotification(otherId, 'message', 'Yeni mesaj', text.slice(0, 50), { convKey }); updateMsgBadge(); updateNotifBadge();
+    addNotification(otherId, 'message', t('newMessage'), text.slice(0, 50), { convKey }); updateMsgBadge(); updateNotifBadge();
     updateMsgBadge();
 }
 
@@ -4416,7 +4453,7 @@ window.openRatingModal = function (adId) {
         return;
     }
     if (!canUserRateAd(adId)) {
-        showToast('rateOnlyBuyer' in (window.TRANSLATIONS?.[window.currentLang] || {}) ? t('rateOnlyBuyer') : 'Sadece satın alan kişi değerlendirebilir.', 'warning', 2500);
+        showToast(t('rateOnlyBuyer'), 'warning', 2500);
         return;
     }
     const ad = window.adsDatabase.find(a => a.id === adId);
@@ -4427,7 +4464,7 @@ window.openRatingModal = function (adId) {
     el('rating-modal').classList.add('active');
     el('rating-modal').dataset.adId = adId;
     qsa('#star-rating .star').forEach(s => s.classList.remove('active'));
-    el('star-text').textContent = 'Lütfen bir puan seçin';
+    el('star-text').textContent = t('selectRating');
     if (el('rating-comment')) el('rating-comment').value = '';
     window.ratingPhotoData = [];
     const prev = el('rating-photo-preview');
@@ -4441,13 +4478,17 @@ window.closeRatingModal = function () {
 
 // ========== PAYMENT ==========
 window.openPaymentModal = function (amount, bonus = 0) {
+    if (!isAdmin()) {
+        showToast(t('creditDisabled') || 'Kredi yükleme şu an devre dışı', 'info', 3000);
+        return;
+    }
     const user = getCurrentUser();
     if (!user) {
         showToast('loginRequired', 'warning', 2000);
         return;
     }
-    el('payment-amount').textContent = amount + ' EUR';
-    el('payment-bonus').textContent = bonus + ' EUR';
+    el('payment-amount').textContent = amount + ' MKD';
+    el('payment-bonus').textContent = bonus + ' MKD';
     el('payment-modal').dataset.amount = amount;
     el('payment-modal').dataset.bonus = bonus;
     el('payment-modal').style.display = 'flex';
@@ -4461,6 +4502,26 @@ window.closePaymentModal = function () {
 window.closeLoginModal = function () { var m = el('login-modal'); if (m) { m.style.display = 'none'; m.classList.remove('active'); } };
 window.closeSignupModal = function () { var m = el('signup-modal'); if (m) { m.style.display = 'none'; m.classList.remove('active'); } };
 window.openLoginModal = function () { var m = el('login-modal'); if (m) { m.style.display = 'flex'; m.classList.add('active'); } };
+window.openTermsModal = function() {
+    const m = el('terms-modal');
+    const c = el('terms-content');
+    if (m && c && window.ALSAT_TERMS_CONTENT) {
+        const lang = window.currentLang || 'mk';
+        const content = typeof window.ALSAT_TERMS_CONTENT === 'object'
+            ? (window.ALSAT_TERMS_CONTENT[lang] || window.ALSAT_TERMS_CONTENT.mk || window.ALSAT_TERMS_CONTENT.tr || '')
+            : window.ALSAT_TERMS_CONTENT;
+        c.innerHTML = content;
+        const titleEl = m.querySelector('.modal-title');
+        if (titleEl) titleEl.innerHTML = '<i class="fa-solid fa-file-contract"></i> Alsat ' + ((window.TRANSLATIONS?.[lang]?.termsModalTitle) || (lang === 'tr' ? 'Kullanım Koşulları' : 'Terms of Use'));
+        m.style.display = 'flex';
+        m.classList.add('active');
+    }
+};
+window.closeTermsModal = function() {
+    const m = el('terms-modal');
+    if (m) { m.style.display = 'none'; m.classList.remove('active'); }
+};
+
 window.closeForgotModal = function () {
     const m = el('forgot-modal');
     if (m) m.style.display = 'none';
@@ -4661,7 +4722,7 @@ function getPremiumTotal() {
     return t;
 }
 function validateAdForm() {
-    const L = window.TRANSLATIONS?.[window.currentLang] || window.TRANSLATIONS?.tr || {};
+    const L = window.TRANSLATIONS?.[window.currentLang] || window.TRANSLATIONS?.mk || {};
     const title = el('ilan-baslik')?.value?.trim();
     const price = parseFloat(el('ilan-fiyat')?.value);
     const cat = el('form-kat-select')?.value;
@@ -4688,21 +4749,21 @@ function resetAdForm() {
     updatePremiumTotal();
     el('ilan-modal').dataset.editId = '';
     const curSel = el('ilan-para-birimi');
-    if (curSel) curSel.value = 'EUR';
+    if (curSel) curSel.value = 'MKD';
     el('modal-baslik').textContent = window.TRANSLATIONS?.[window.currentLang]?.newAdTitle || 'Yeni İlan Oluştur';
     renderCategoryExtraFields();
 }
 function updatePremiumTotal() {
     const tot = getPremiumTotal();
     const elt = el('premium-total');
-    if (elt) elt.textContent = (window.TRANSLATIONS?.[window.currentLang]?.premiumTotal || 'Toplam ek ücret') + ': ' + tot + ' EUR';
+    if (elt) elt.textContent = (window.TRANSLATIONS?.[window.currentLang]?.premiumTotal || 'Toplam ek ücret') + ': ' + tot + ' MKD';
 }
 function updatePremiumLabels() {
     const p = getSiteSettings().premiumPrices;
     const bump = getSiteSettings().bumpPrice;
     qsa('.premium-option .price').forEach((span, i) => {
         const prices = [p.vitrin, p.font, p.urgent, p.stats, p.extend, p.multicity, p.verified];
-        if (prices[i] !== undefined) span.textContent = '+' + prices[i] + ' EUR';
+        if (prices[i] !== undefined) span.textContent = '+' + prices[i] + ' MKD';
     });
 }
 
@@ -4876,7 +4937,7 @@ el('login-formu')?.addEventListener('submit', async function(e) {
                 this.reset();
             }
         } catch (err) {
-            const msg = err?.message || (typeof err === 'object' && err.error) || 'Giriş başarısız';
+            const msg = err?.message || (typeof err === 'object' && err.error) || t('loginFailed');
             showToast(msg, 'error', 2500);
         }
         return;
@@ -4895,50 +4956,64 @@ el('login-formu')?.addEventListener('submit', async function(e) {
     this.reset();
 });
 
+el('signup-send-code-btn')?.addEventListener('click', async function() {
+    const email = (el('signup-email')?.value || '').trim().toLowerCase();
+    if (!email) { showToast(t('loginRequired') || 'E-posta gerekli', 'warning', 2000); return; }
+    if (window.API_BASE && window.AlsatAPI) {
+        try {
+            await window.AlsatAPI.sendCode('register', email);
+            const codeStep = el('signup-code-step');
+            const btn = el('signup-send-code-btn');
+            if (codeStep) { codeStep.style.display = 'block'; el('signup-verify-code')?.focus(); }
+            if (btn) { btn.disabled = true; btn.querySelector('#signup-send-code-txt').textContent = t('codeSent') || 'Kod gönderildi'; }
+            showToast(t('codeSent') || 'Doğrulama kodu e-postanıza gönderildi', 'success', 3000);
+        } catch (err) {
+            showToast(err?.error || err?.message || t('codeSendFailed'), 'error', 3000);
+        }
+    }
+});
+
 el('signup-formu')?.addEventListener('submit', async function(e) {
     e.preventDefault();
     const name = (el('signup-name')?.value || '').trim();
     const email = (el('signup-email')?.value || '').trim().toLowerCase();
+    const phone = (el('signup-phone')?.value || '').trim();
     const password = (el('signup-password')?.value || '').trim();
     const confirm = (el('signup-confirm')?.value || '').trim();
     if (!email || !name) { showToast(t('loginRequired') || 'E-posta ve ad gerekli', 'warning', 2000); return; }
+    if (!phone || phone.replace(/\D/g, '').length < 9) { showToast(t('signupPhoneRequired') || 'Geçerli telefon numarası girin', 'warning', 2000); return; }
     if (password.length < 6) { showToast(t('passwordMin6') || 'Şifre en az 6 karakter olmalı', 'warning', 2000); return; }
     if (password !== confirm) { showToast(t('passwordsMustMatch') || 'Şifreler eşleşmiyor', 'warning', 2000); return; }
     if (window.API_BASE && window.AlsatAPI) {
         const codeStep = el('signup-code-step');
         const codeInput = el('signup-verify-code');
-        if (codeStep && codeStep.style.display === 'none') {
-            try {
-                await window.AlsatAPI.sendCode('register', email);
-                if (codeStep) codeStep.style.display = 'block';
-                if (codeInput) { codeInput.value = ''; codeInput.focus(); }
-                showToast(t('codeSent') || 'Doğrulama kodu e-postanıza gönderildi', 'success', 3000);
-            } catch (err) {
-                showToast(err?.error || err?.message || 'Kod gönderilemedi', 'error', 3000);
-            }
+        if (!codeStep || codeStep.style.display === 'none') {
+            showToast(t('sendCodeFirst') || 'Önce "Doğrulama Kodu Gönder" butonuna tıklayın', 'warning', 3000);
             return;
         }
         const code = (codeInput?.value || '').trim();
         if (!code || code.length !== 6) { showToast(t('enterValidCode') || 'Geçerli 6 haneli kodu girin', 'warning', 2000); return; }
         try {
-            const r = await window.AlsatAPI.verifyRegister(email, code, name, password);
+            const r = await window.AlsatAPI.verifyRegister(email, code, name, password, phone);
             if (r && r.id) {
-                getOrCreateUser(r.id, email, name);
-                setCurrentUser({ id: r.id, email, name });
+                getOrCreateUser(r.id, email, name, phone);
+                setCurrentUser({ id: r.id, email, name, phone });
                 updateHeaderUI();
                 closeSignupModal();
                 if (codeStep) codeStep.style.display = 'none';
                 if (codeInput) codeInput.value = '';
+                const btn = el('signup-send-code-btn');
+                if (btn) { btn.disabled = false; btn.querySelector('#signup-send-code-txt').textContent = t('sendCodeBtn') || 'Doğrulama Kodu Gönder'; }
                 showToast('signupSuccess', 'success', 2000);
                 this.reset();
             }
         } catch (err) {
-            showToast(err?.error || err?.message || 'Kayıt başarısız', 'error', 3000);
+            showToast(err?.error || err?.message || t('signupFailed'), 'error', 3000);
         }
         return;
     }
-    const user = { id: Date.now(), email, name };
-    getOrCreateUser(user.id, user.email, user.name);
+    const user = { id: Date.now(), email, name, phone };
+    getOrCreateUser(user.id, user.email, user.name, user.phone);
     if (window.usersDatabase && window.usersDatabase[String(user.id)]) window.usersDatabase[String(user.id)].password = password;
     setCurrentUser(user);
     updateHeaderUI();
@@ -4954,6 +5029,9 @@ el('switch-signup')?.addEventListener('click', function(e) {
     el('signup-modal').style.display = 'flex';
     const codeStep = el('signup-code-step');
     if (codeStep) codeStep.style.display = 'none';
+    const sendBtn = el('signup-send-code-btn');
+    if (sendBtn) { sendBtn.disabled = false; const t = sendBtn.querySelector('#signup-send-code-txt'); if (t) t.textContent = t('sendCodeBtn') || 'Doğrulama Kodu Gönder'; }
+    if (window.API_BASE && sendBtn) sendBtn.style.display = '';
 });
 
 el('switch-login')?.addEventListener('click', function(e) {
@@ -4982,6 +5060,9 @@ qsa('.toggle-password').forEach(btn => {
 // ========== EVENT BINDINGS ==========
 document.addEventListener('DOMContentLoaded', async function() {
     try {
+    const sendCodeBtn = el('signup-send-code-btn');
+    if (window.API_BASE && sendCodeBtn) sendCodeBtn.style.display = '';
+
     if (window.API_BASE && window.AlsatAPI) {
         try {
             const ads = await window.AlsatAPI.fetchAdsFull();
@@ -5126,18 +5207,20 @@ document.addEventListener('DOMContentLoaded', async function() {
         applyFilters();
         showToast('saved', 'success', 2000);
     });
-    el('admin-clear-all')?.addEventListener('click', async function() {
-        if (!isAdmin()) return;
+    document.addEventListener('click', function adminClearAllClick(e) {
+        if (!e.target?.closest('#admin-clear-all') || !isAdmin()) return;
+        e.preventDefault();
         if (!confirm('Tüm ilanlar ve admin dışındaki tüm kullanıcılar silinecek. Favoriler, mesajlar, bildirimler vb. temizlenecek. GERİ ALINAMAZ. Devam?')) return;
         if (!confirm('Son kez onaylayın: TÜM VERİLER SİLİNECEK (admin hariç). Devam?')) return;
-        try {
+        (async function() {
             if (window.API_BASE && window.AlsatAPI) {
-                await window.AlsatAPI.resetAll();
+                try { await window.AlsatAPI.resetAll(); } catch (err) { console.warn('API reset:', err); }
             }
-            window.adsDatabase = [];
             const adminEmail = (ADMIN_EMAIL || 'bayarburak87@gmail.com').toLowerCase();
+            if (!window.usersDatabase) loadUsersDatabase();
             const db = window.usersDatabase || {};
             const admin = Object.values(db).find(u => (u.email || '').toLowerCase() === adminEmail);
+            window.adsDatabase = [];
             window.usersDatabase = admin ? { [String(admin.id)]: admin } : {};
             window.favorites = [];
             window.favoriteLists = {};
@@ -5187,11 +5270,8 @@ document.addEventListener('DOMContentLoaded', async function() {
             renderAdminAds();
             renderAdminUsers();
             applyFilters();
-            showToast('Tüm veriler temizlendi', 'success', 3000);
-        } catch (e) {
-            console.error(e);
-            showToast('Hata: ' + (e.message || 'İşlem başarısız'), 'error', 3000);
-        }
+            showToast(t('allDataCleared'), 'success', 3000);
+        })();
     });
     el('admin-search-ads')?.addEventListener('input', renderAdminAds);
     el('admin-search-ads')?.addEventListener('keyup', renderAdminAds);
@@ -5420,7 +5500,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         const material = (el('add-product-page-material')?.value || '').trim();
         const color = (el('add-product-page-color')?.value || '').trim();
         const image = (el('add-product-page-image')?.value || '').trim() || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300';
-        if (!title || !material || !color) { showToast('Ürün adı, materyal ve renk zorunludur', 'warning', 3000); return; }
+        if (!title || !material || !color) { showToast(t('productNameMaterialColorRequired'), 'warning', 3000); return; }
         let discountPercent;
         if (originalPrice && originalPrice > price) discountPercent = Math.round(100 - (price / originalPrice * 100));
         const productData = { storeId, title, price, originalPrice: originalPrice || undefined, discountPercent, image, category, material, color };
@@ -5429,7 +5509,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         window.storeProductRequests.push(req);
         saveStoreProductRequests();
         el('add-product-page').style.display = 'none';
-        showToast('Talep gönderildi. Admin onayından sonra yayınlanacaktır.', 'info', 3000);
+        showToast(t('requestSentPublish'), 'info', 3000);
         openStoreDetail(storeId);
     });
 
@@ -5457,6 +5537,8 @@ document.addEventListener('DOMContentLoaded', async function() {
         e.preventDefault();
         window.openLoginModal?.();
     });
+    el('open-terms-link')?.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); window.openTermsModal?.(); });
+
     el('forgot-password')?.addEventListener('click', function(e) {
         e.preventDefault();
         el('login-modal').style.display = 'none';
@@ -5479,11 +5561,11 @@ document.addEventListener('DOMContentLoaded', async function() {
                 el('forgot-code')?.focus();
                 showToast(t('codeSent') || 'Doğrulama kodu e-postanıza gönderildi', 'success', 3000);
             } catch (err) {
-                showToast(err?.error || err?.message || 'Kod gönderilemedi', 'error', 3000);
+                showToast(err?.error || err?.message || t('codeSendFailed'), 'error', 3000);
             }
             return;
         }
-        showToast('Şifre sıfırlama için info@alsatmk.com adresine yazın', 'info', 4000);
+        showToast(t('passwordResetContact'), 'info', 4000);
     });
     el('forgot-back-btn')?.addEventListener('click', function() {
         el('forgot-step1').style.display = 'block';
@@ -5504,7 +5586,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 window.openLoginModal?.();
                 showToast(t('passwordResetSuccess') || 'Şifreniz güncellendi. Giriş yapabilirsiniz.', 'success', 3000);
             } catch (err) {
-                showToast(err?.error || err?.message || 'Şifre sıfırlama başarısız', 'error', 3000);
+                showToast(err?.error || err?.message || t('passwordResetFailed'), 'error', 3000);
             }
         }
     });
@@ -5636,15 +5718,17 @@ document.addEventListener('DOMContentLoaded', async function() {
         applyTheme(!isDark);
     });
     el('mobile-action-theme')?.addEventListener('keydown', function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.click(); } });
-    el('mobile-action-support')?.addEventListener('click', function(e) { e.preventDefault(); el('support-btn')?.click(); closeMobileMenu(); });
-    el('mobile-action-ilan')?.addEventListener('click', function(e) { e.preventDefault(); el('btnIlanVer')?.click(); closeMobileMenu(); });
-    el('mobile-action-login')?.addEventListener('click', function(e) { e.preventDefault(); window.openLoginModal?.(); closeMobileMenu(); });
-    el('mobile-action-profile')?.addEventListener('click', function(e) { e.preventDefault(); window.openProfilePage?.(); closeMobileMenu(); });
-    el('mobile-action-admin')?.addEventListener('click', function(e) { e.preventDefault(); if (isAdmin()) { window.openAdminPage?.(); closeMobileMenu(); } });
-    el('mobile-action-logout')?.addEventListener('click', function(e) { e.preventDefault(); logout(); closeMobileMenu(); });
-    el('mobile-action-fav')?.addEventListener('click', function(e) { e.preventDefault(); window.openFavoritesPage?.(); closeMobileMenu(); });
-    el('mobile-action-messages')?.addEventListener('click', function(e) { e.preventDefault(); window.openMessagingModal?.(); closeMobileMenu(); });
-    el('mobile-action-notif')?.addEventListener('click', function(e) { e.preventDefault(); window.toggleNotifDropdown?.(); closeMobileMenu(); });
+    el('mobile-action-support')?.addEventListener('click', function(e) { e.preventDefault(); closeMobileMenu(); window.openSupportModal?.(); });
+    el('mobile-action-ilan')?.addEventListener('click', function(e) { e.preventDefault(); closeMobileMenu(); if (!getCurrentUser()) { showToast('postAdRequired', 'warning', 2000); window.openLoginModal?.(); return; } el('ilan-modal').style.display = 'flex'; });
+    el('mobile-action-login')?.addEventListener('click', function(e) { e.preventDefault(); closeMobileMenu(); window.openLoginModal?.(); });
+    el('mobile-action-profile')?.addEventListener('click', function(e) { e.preventDefault(); closeMobileMenu(); window.openProfilePage?.(); });
+    el('mobile-action-admin')?.addEventListener('click', function(e) { e.preventDefault(); closeMobileMenu(); if (isAdmin()) window.openAdminPage?.(); });
+    el('mobile-action-logout')?.addEventListener('click', function(e) { e.preventDefault(); closeMobileMenu(); logout(); });
+    el('mobile-action-fav')?.addEventListener('click', function(e) { e.preventDefault(); closeMobileMenu(); window.openFavoritesPage?.(); });
+    el('mobile-action-messages')?.addEventListener('click', function(e) { e.preventDefault(); closeMobileMenu(); window.openMessagingModal?.(); });
+    el('mobile-action-notif')?.addEventListener('click', function(e) { e.preventDefault(); closeMobileMenu(); window.openMobileNotifModal?.(); });
+    el('mobile-notif-close')?.addEventListener('click', window.closeMobileNotifModal);
+    el('mobile-notif-modal')?.addEventListener('click', function(e) { if (e.target === this) window.closeMobileNotifModal?.(); });
     var mobileLang = el('mobile-lang-select');
     if (mobileLang) {
         mobileLang.value = window.currentLang;
@@ -5652,6 +5736,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape' && el('mobile-menu-overlay')?.classList.contains('open')) closeMobileMenu();
+        if (e.key === 'Escape' && el('mobile-notif-modal')?.style.display === 'flex') window.closeMobileNotifModal?.();
     });
 
     qsa('.close-btn').forEach(btn => {
@@ -5713,8 +5798,8 @@ document.addEventListener('DOMContentLoaded', async function() {
         btn.addEventListener('click', function() {
             qsa('.payment-option').forEach(b => b.classList.remove('selected'));
             this.classList.add('selected');
-            const amount = parseInt(this.dataset.amount);
-            const bonus = { 5: 1, 10: 2, 20: 5, 50: 15 }[amount] || 0;
+            const amount = parseInt(this.dataset.amount) || 0;
+            const bonus = parseInt(this.dataset.bonus) || ({ 5: 1, 10: 2, 20: 5, 50: 15 }[amount] || 0);
             openPaymentModal(amount, bonus);
         });
     });
@@ -5864,7 +5949,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             addNotification(store.ownerId, 'product_qa', L.storeQaNotifTitle || 'Yeni soru geldi', 'Ürün soruldu: "' + question.slice(0, 50) + (question.length > 50 ? '...' : '') + '"', { productId, storeId: store.id, questionId: qId });
         }
         el('product-qa-question').value = '';
-        showToast('Soru gönderildi', 'success', 2000);
+        showToast(t('questionSent'), 'success', 2000);
         openProductDetail(productId);
     });
     el('store-qa-form')?.addEventListener('submit', function(e) {
@@ -5936,7 +6021,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         el('seller-tax-id').value = '';
         el('seller-district').value = '';
         el('seller-terms').checked = false;
-        el('seller-category-display').textContent = 'Kategori seçiniz';
+        el('seller-category-display').textContent = t('selectCategoryLabel');
         el('seller-category-dropdown').style.display = 'none';
         el('seller-category-error').style.display = 'none';
         const distSel = el('seller-district');
@@ -5992,7 +6077,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         el('stores-page').style.display = 'block';
         const badge = el('admin-seller-apps-badge');
         if (badge) badge.textContent = window.sellerApplications.filter(a => a.status === 'pending').length;
-        showToast('Başvurunuz alındı. En kısa sürede sizinle iletişime geçeceğiz.', 'success', 4000);
+        showToast(t('applicationReceived'), 'success', 4000);
     });
 
     window.openAddStoreProductModal = function(storeId) {
@@ -6029,7 +6114,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         const pattern = (el('add-product-pattern')?.value || '').trim();
         const color = (el('add-product-color')?.value || '').trim();
         const size = (el('add-product-size')?.value || '').trim();
-        if (!title || !material || !color) { showToast('Materyal ve Renk alanları zorunludur', 'warning', 3000); return; }
+        if (!title || !material || !color) { showToast(t('materialColorRequired'), 'warning', 3000); return; }
         window.storeProducts = window.storeProducts || [];
         const newId = Math.max(0, ...window.storeProducts.map(p => p.id)) + 1;
         const product = { id: newId, storeId, title, price, image, category: category || 'Genel', fit: fit || undefined, collarType: collarType || undefined, material, pattern: pattern || undefined, color, size: size || undefined };

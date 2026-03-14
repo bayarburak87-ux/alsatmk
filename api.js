@@ -54,12 +54,12 @@
         body: JSON.stringify({ type, email })
       });
     },
-    async verifyRegister(email, code, name, password) {
+    async verifyRegister(email, code, name, password, phone) {
       if (!base()) return null;
       const r = await fetchJson(base() + '/api/auth/verify-register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, code, name, password })
+        body: JSON.stringify({ email, code, name, password, phone })
       });
       return r;
     },

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="tr">
+<html lang="mk">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5">
@@ -25,7 +25,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="style.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
 </head>
 <body>
     <script>
@@ -58,15 +57,15 @@
             
             <div class="currency-widget" id="currency-widget" title="Döviz Kuru">
                 <i class="fa-solid fa-coins"></i>
-                <span id="currency-display">1 EUR</span>
+                <span id="currency-display">1 MKD</span>
                 <div class="currency-dropdown" id="currency-dropdown">
                     <div class="currency-rates" id="currency-rates"><span class="loading-rates">Yükleniyor...</span></div>
                     <div class="currency-converter">
                         <input type="number" id="currency-amount" value="1" min="0" step="0.01" placeholder="Miktar">
-                        <select id="currency-from"><option value="EUR">EUR</option><option value="MKD">MKD</option><option value="TRY">TRY</option></select>
+                        <select id="currency-from"><option value="MKD" selected>MKD</option><option value="EUR">EUR</option><option value="TRY">TRY</option></select>
                         <span>=</span>
                         <span id="currency-result">-</span>
-                        <select id="currency-to"><option value="MKD">MKD</option><option value="EUR" selected>EUR</option><option value="TRY">TRY</option></select>
+                        <select id="currency-to"><option value="EUR" selected>EUR</option><option value="MKD">MKD</option><option value="TRY">TRY</option></select>
                     </div>
                 </div>
             </div>
@@ -77,8 +76,8 @@
             <div class="dil-secici">
                 <i class="fa-solid fa-globe"></i>
                 <select id="lang-select">
-                    <option value="tr" selected>TR</option>
-                    <option value="mk">MK</option>
+                    <option value="mk" selected>MK</option>
+                    <option value="tr">TR</option>
                     <option value="al">AL</option>
                     <option value="en">EN</option>
                 </select>
@@ -147,31 +146,40 @@
                     <div class="mobile-currency-rates" id="mobile-currency-rates"></div>
                     <div class="mobile-currency-converter">
                         <input type="number" id="mobile-currency-amount" placeholder="Miktar" value="1" min="0" step="0.01" aria-label="Dönüştürülecek miktar">
-                        <span class="mobile-currency-unit">EUR</span>
+                        <span class="mobile-currency-unit">MKD</span>
                         <div class="mobile-currency-result" id="mobile-currency-result"></div>
                     </div>
                 </div>
-                <a href="#" class="mobile-menu-item" id="mobile-action-support"><i class="fa-solid fa-headset"></i><span id="mobile-txt-destek">Destek</span></a>
+                <a href="#" class="mobile-menu-item" id="mobile-action-support" onclick="return false"><i class="fa-solid fa-headset"></i><span id="mobile-txt-destek">Destek</span></a>
                 <div class="mobile-menu-item mobile-lang-wrap">
                     <i class="fa-solid fa-globe"></i>
                     <span id="mobile-txt-dil">Dil</span>
                     <select id="mobile-lang-select" class="mobile-lang-select" aria-label="Dil seçin">
+                        <option value="mk" selected>MK</option>
                         <option value="tr">TR</option>
-                        <option value="mk">MK</option>
                         <option value="al">AL</option>
                         <option value="en">EN</option>
                     </select>
                 </div>
-                <a href="#" class="mobile-menu-item" id="mobile-action-ilan"><i class="fa-solid fa-circle-plus"></i><span id="mobile-txt-ilan-ver">İlan Ver</span></a>
-                <a href="#" class="mobile-menu-item" id="mobile-action-login"><i class="fa-solid fa-user"></i><span id="mobile-txt-giris">Giriş</span></a>
-                <a href="#" class="mobile-menu-item mobile-menu-item-logged" id="mobile-action-profile" style="display:none"><i class="fa-solid fa-user-circle"></i><span id="mobile-profile-text">Profilim</span></a>
-                <a href="#" class="mobile-menu-item mobile-menu-item-admin" id="mobile-action-admin" style="display:none"><i class="fa-solid fa-shield-halved"></i><span id="mobile-txt-admin">Admin Panel</span></a>
-                <a href="#" class="mobile-menu-item mobile-menu-item-logged" id="mobile-action-logout" style="display:none"><i class="fa-solid fa-sign-out"></i><span id="mobile-logout-text">Çıkış</span></a>
-                <a href="#" class="mobile-menu-item" id="mobile-action-fav"><i class="fa-solid fa-heart"></i><span id="mobile-txt-fav">Favoriler</span><span class="mobile-badge" id="mobile-fav-badge">0</span></a>
-                <a href="#" class="mobile-menu-item mobile-menu-item-logged" id="mobile-action-messages" style="display:none"><i class="fa-solid fa-comment-dots"></i><span id="mobile-txt-msg">Mesajlar</span><span class="mobile-badge" id="mobile-msg-badge" style="display:none">0</span></a>
-                <a href="#" class="mobile-menu-item mobile-menu-item-logged" id="mobile-action-notif" style="display:none"><i class="fa-solid fa-bell"></i><span id="mobile-txt-notif">Bildirimler</span><span class="mobile-badge" id="mobile-notif-badge" style="display:none">0</span></a>
+                <a href="#" class="mobile-menu-item" id="mobile-action-ilan" onclick="return false"><i class="fa-solid fa-circle-plus"></i><span id="mobile-txt-ilan-ver">İlan Ver</span></a>
+                <a href="#" class="mobile-menu-item" id="mobile-action-login" onclick="return false"><i class="fa-solid fa-user"></i><span id="mobile-txt-giris">Giriş</span></a>
+                <a href="#" class="mobile-menu-item mobile-menu-item-logged" id="mobile-action-profile" style="display:none" onclick="return false"><i class="fa-solid fa-user-circle"></i><span id="mobile-profile-text">Profilim</span></a>
+                <a href="#" class="mobile-menu-item mobile-menu-item-admin" id="mobile-action-admin" style="display:none" onclick="return false"><i class="fa-solid fa-shield-halved"></i><span id="mobile-txt-admin">Admin Panel</span></a>
+                <a href="#" class="mobile-menu-item mobile-menu-item-logged" id="mobile-action-logout" style="display:none" onclick="return false"><i class="fa-solid fa-sign-out"></i><span id="mobile-logout-text">Çıkış</span></a>
+                <a href="#" class="mobile-menu-item" id="mobile-action-fav" onclick="return false"><i class="fa-solid fa-heart"></i><span id="mobile-txt-fav">Favoriler</span><span class="mobile-badge" id="mobile-fav-badge">0</span></a>
+                <a href="#" class="mobile-menu-item mobile-menu-item-logged" id="mobile-action-messages" style="display:none" onclick="return false"><i class="fa-solid fa-comment-dots"></i><span id="mobile-txt-msg">Mesajlar</span><span class="mobile-badge" id="mobile-msg-badge" style="display:none">0</span></a>
+                <a href="#" class="mobile-menu-item mobile-menu-item-logged" id="mobile-action-notif" style="display:none" onclick="return false"><i class="fa-solid fa-bell"></i><span id="mobile-txt-notif">Bildirimler</span><span class="mobile-badge" id="mobile-notif-badge" style="display:none">0</span></a>
             </nav>
         </div>
+    </div>
+
+    <!-- Mobil Bildirimler Modal -->
+    <div id="mobile-notif-modal" class="mobile-full-modal" aria-hidden="true" style="display:none;">
+        <div class="mobile-full-modal-header">
+            <h2 id="mobile-notif-title">Bildirimler</h2>
+            <button type="button" class="mobile-modal-close" id="mobile-notif-close" aria-label="Kapat"><i class="fa-solid fa-times"></i></button>
+        </div>
+        <div id="mobile-notif-list" class="mobile-notif-list"></div>
     </div>
 
     <!-- ANASAYFA (Pazar3 tarzı) -->
@@ -274,9 +282,9 @@
                     </div>
                     <div class="filtre-item">
                         <label id="label-fiyat-kisa"><i class="fa-solid fa-tags"></i></label>
-                        <input type="number" id="minPrice" placeholder="Min EUR">
+                        <input type="number" id="minPrice" placeholder="Min MKD">
                         <span class="ayrac">-</span>
-                        <input type="number" id="maxPrice" placeholder="Max EUR">
+                        <input type="number" id="maxPrice" placeholder="Max MKD">
                     </div>
                     <div class="filtre-item filtre-durum">
                         <label id="label-durum-kisa"><i class="fa-solid fa-star"></i></label>
@@ -317,8 +325,8 @@
                             <select id="lf-marka"><option value="">Marka</option></select>
                             <select id="lf-model"><option value="">Model</option></select>
                             <select id="lf-yil"><option value="">Yıl</option></select>
-                            <input type="number" id="lf-fiyat-min" placeholder="Min EUR">
-                            <input type="number" id="lf-fiyat-max" placeholder="Max EUR">
+                            <input type="number" id="lf-fiyat-min" placeholder="Min MKD">
+                            <input type="number" id="lf-fiyat-max" placeholder="Max MKD">
                             <select id="lf-yakit"><option value="">Yakıt</option><option value="Benzin">Benzin</option><option value="Dizel">Dizel</option><option value="LPG">LPG</option><option value="Elektrik">Elektrik</option><option value="Hibrit">Hibrit</option></select>
                             <select id="lf-vites"><option value="">Vites</option><option value="Manuel">Manuel</option><option value="Otomatik">Otomatik</option></select>
                             <button type="button" class="filtre-uygula-btn" id="btn-uygula-oto"><i class="fa-solid fa-magnifying-glass"></i> Ara</button>
@@ -337,7 +345,7 @@
                             <select id="lf-job-type"><option value="">Çalışma Şekli</option><option value="Tam Zamanlı">Tam Zamanlı</option><option value="Yarı Zamanlı">Yarı Zamanlı</option><option value="Staj">Staj</option><option value="Freelance">Freelance</option><option value="Uzaktan">Uzaktan</option><option value="Hibrit">Hibrit</option></select>
                             <select id="lf-job-exp"><option value="">Deneyim</option><option value="Deneyimsiz">Deneyimsiz</option><option value="1-2 yıl">1-2 yıl</option><option value="3-5 yıl">3-5 yıl</option><option value="5+ yıl">5+ yıl</option></select>
                             <input type="text" id="lf-job-company" placeholder="Şirket adı">
-                            <input type="number" id="lf-job-salary-min" placeholder="Min maaş EUR">
+                            <input type="number" id="lf-job-salary-min" placeholder="Min maaş MKD">
                             <button type="button" class="filtre-uygula-btn" id="btn-uygula-is"><i class="fa-solid fa-magnifying-glass"></i> Ara</button>
                         </div>
                     </div>
@@ -421,8 +429,8 @@
                                 <div class="price-currency-row">
                                     <input type="number" id="ilan-fiyat" required placeholder="0">
                                     <select id="ilan-para-birimi">
-                                        <option value="EUR">EUR</option>
                                         <option value="MKD">MKD</option>
+                                        <option value="EUR">EUR</option>
                                         <option value="TRY">TRY</option>
                                     </select>
                                 </div>
@@ -498,7 +506,7 @@
                             <span class="checkmark"></span>
                             <span id="prem-label-vitrin">Vitrin İlanı (Anasayfada Öne Çıkar)</span>
                         </label>
-                        <span class="price">+5 EUR</span>
+                        <span class="price">+310 MKD</span>
                     </div>
                     <div class="premium-option">
                         <label class="check-container">
@@ -506,7 +514,7 @@
                             <span class="checkmark"></span>
                             <span id="prem-label-font">Renkli/Kalın Başlık</span>
                         </label>
-                        <span class="price">+2 EUR</span>
+                        <span class="price">+125 MKD</span>
                     </div>
                     <div class="premium-option">
                         <label class="check-container">
@@ -514,7 +522,7 @@
                             <span class="checkmark"></span>
                             <span id="prem-label-urgent">Acil Satılık Rozeti</span>
                         </label>
-                        <span class="price">+3 EUR</span>
+                        <span class="price">+185 MKD</span>
                     </div>
                     <div class="premium-option">
                         <label class="check-container">
@@ -522,7 +530,7 @@
                             <span class="checkmark"></span>
                             <span id="prem-label-stats">Detaylı İstatistikler</span>
                         </label>
-                        <span class="price">+4 EUR</span>
+                        <span class="price">+250 MKD</span>
                     </div>
                     <div class="premium-option">
                         <label class="check-container">
@@ -530,7 +538,7 @@
                             <span class="checkmark"></span>
                             <span id="prem-label-extend">Uzatılmış Süre (60 gün)</span>
                         </label>
-                        <span class="price">+3 EUR</span>
+                        <span class="price">+185 MKD</span>
                     </div>
                     <div class="premium-option">
                         <label class="check-container">
@@ -538,7 +546,7 @@
                             <span class="checkmark"></span>
                             <span id="prem-label-multicity">Çoklu Şehir (3 şehir)</span>
                         </label>
-                        <span class="price">+6 EUR</span>
+                        <span class="price">+370 MKD</span>
                     </div>
                     <div class="premium-option">
                         <label class="check-container">
@@ -546,14 +554,14 @@
                             <span class="checkmark"></span>
                             <span id="prem-label-verified">Öne Çıkan Satıcı (1 ay)</span>
                         </label>
-                        <span class="price">+8 EUR</span>
+                        <span class="price">+500 MKD</span>
                     </div>
                     <div class="premium-option" id="prem-multicity-cities" style="display:none;">
                         <label>Ekstra Şehirler</label>
                         <select id="prem-city2" class="prem-city-select"><option value="">Seçin</option></select>
                         <select id="prem-city3" class="prem-city-select"><option value="">Seçin</option></select>
                     </div>
-                    <p class="premium-total" id="premium-total">Toplam ek ücret: 0 EUR</p>
+                    <p class="premium-total" id="premium-total">Toplam ek ücret: 0 MKD</p>
                 </div>
 
                 <button type="submit" class="modern-submit-btn">
@@ -633,6 +641,11 @@
                             <span class="error-message"></span>
                         </div>
                         <div class="input-group">
+                            <label id="signup-phone-label">TELEFON</label>
+                            <input type="tel" id="signup-phone" placeholder="+389 70 123 456" required>
+                            <span class="error-message"></span>
+                        </div>
+                        <div class="input-group">
                             <label id="signup-pass-label">ŞİFRE</label>
                             <div class="password-wrapper">
                                 <input type="password" id="signup-password" placeholder="En az 6 karakter" required>
@@ -655,8 +668,12 @@
 
                         <label class="agree-terms">
                             <input type="checkbox" id="agree-check" required>
-                            <span id="agree-text">Kullanıcı Sözleşmesini okudum ve kabul ediyorum</span>
+                            <span id="agree-wrap"><span id="agree-prefix"></span><a href="#" id="open-terms-link" class="terms-link"></a><span id="agree-suffix"></span></span>
                         </label>
+
+                        <button type="button" class="admin-btn" id="signup-send-code-btn" style="margin-top:12px;display:none;width:100%;">
+                            <i class="fa-solid fa-envelope-circle-check"></i> <span id="signup-send-code-txt">Doğrulama Kodu Gönder</span>
+                        </button>
 
                         <div id="signup-code-step" style="display:none;">
                             <p id="signup-code-desc" style="margin-bottom:12px;color:var(--text-muted);">E-postanıza gelen 6 haneli doğrulama kodunu girin.</p>
@@ -680,6 +697,16 @@
                     </div>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- KULLANICI SÖZLEŞMESİ MODAL -->
+    <div id="terms-modal" class="modern-modal">
+        <div class="modal-content" style="max-width:700px;max-height:90vh;overflow-y:auto;">
+            <span class="close-btn" onclick="window.closeTermsModal()">&times;</span>
+            <h2 class="modal-title"><i class="fa-solid fa-file-contract"></i> Alsat Kullanıcı Sözleşmesi</h2>
+            <div id="terms-content" class="terms-content"></div>
+            <button type="button" class="modern-submit-btn" id="terms-modal-close" onclick="window.closeTermsModal()" style="margin-top:20px;">Kapat</button>
         </div>
     </div>
 
@@ -768,7 +795,7 @@
             <button class="tab-btn" data-tab="account-settings">
                 <i class="fa-solid fa-gear"></i> Ayarlar
             </button>
-            <button class="tab-btn" data-tab="payment">
+            <button class="tab-btn" data-tab="payment" id="tab-btn-payment">
                 <i class="fa-solid fa-credit-card"></i> Kredi
             </button>
             <button class="tab-btn" data-tab="ratings">
@@ -795,8 +822,8 @@
                                 <span class="stat-number" id="profile-fav-count">0</span>
                                 <span class="stat-label">Favori</span>
                             </div>
-                            <div class="stat-item">
-                                <span class="stat-number" id="profile-credit-disp">0 EUR</span>
+                            <div class="stat-item" id="profile-credit-stat">
+                                <span class="stat-number" id="profile-credit-disp">0 MKD</span>
                                 <span class="stat-label">Kredi</span>
                             </div>
                         </div>
@@ -873,7 +900,7 @@
                 <div class="credit-card">
                     <div class="credit-header">
                         <h3>Mevcut Kredi</h3>
-                        <div class="credit-amount" id="current-credit">0 EUR</div>
+                        <div class="credit-amount" id="current-credit">0 MKD</div>
                     </div>
                     <p class="credit-subtitle">Kredi ile premium özellikler ve destekleme ilanı kullan</p>
                 </div>
@@ -881,21 +908,21 @@
                 <div class="payment-methods">
                     <h3>Kredi Yükle</h3>
                     <div class="payment-options">
-                        <button class="payment-option" data-amount="5">
-                            <span class="amount">5 EUR</span>
-                            <span class="bonus">+ 1 EUR Bonus</span>
+                        <button class="payment-option" data-amount="300" data-bonus="60">
+                            <span class="amount">300 MKD</span>
+                            <span class="bonus">+ 60 MKD Bonus</span>
                         </button>
-                        <button class="payment-option" data-amount="10">
-                            <span class="amount">10 EUR</span>
-                            <span class="bonus">+ 2 EUR Bonus</span>
+                        <button class="payment-option" data-amount="620" data-bonus="124">
+                            <span class="amount">620 MKD</span>
+                            <span class="bonus">+ 124 MKD Bonus</span>
                         </button>
-                        <button class="payment-option" data-amount="20">
-                            <span class="amount">20 EUR</span>
-                            <span class="bonus">+ 5 EUR Bonus</span>
+                        <button class="payment-option" data-amount="1250" data-bonus="310">
+                            <span class="amount">1.250 MKD</span>
+                            <span class="bonus">+ 310 MKD Bonus</span>
                         </button>
-                        <button class="payment-option" data-amount="50">
-                            <span class="amount">50 EUR</span>
-                            <span class="bonus">+ 15 EUR Bonus</span>
+                        <button class="payment-option" data-amount="3100" data-bonus="930">
+                            <span class="amount">3.100 MKD</span>
+                            <span class="bonus">+ 930 MKD Bonus</span>
                         </button>
                     </div>
                 </div>
@@ -903,7 +930,7 @@
                 <div class="payment-methods">
                     <h3>Özel Tutar</h3>
                     <div class="custom-payment">
-                        <input type="number" id="custom-amount" placeholder="Tutar girin (EUR)" min="1" max="500">
+                        <input type="number" id="custom-amount" placeholder="Tutar girin (MKD)" min="1" max="50000">
                         <button class="payment-btn" id="custom-payment-btn">Ödemeye Devam Et</button>
                     </div>
                 </div>
@@ -955,7 +982,7 @@
             <p id="cart-empty" style="text-align:center;padding:40px;color:var(--text-muted);">Sepetiniz boş</p>
             <div id="cart-items" style="display:none;"></div>
             <div id="cart-summary" style="margin-top:20px;display:none;padding:16px;background:var(--card-bg);border-radius:12px;border:1px solid var(--border-color);">
-                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;"><span>Toplam:</span><strong id="cart-total">0 EUR</strong></div>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;"><span>Toplam:</span><strong id="cart-total">0 MKD</strong></div>
                 <button type="button" class="modern-submit-btn" id="cart-checkout-btn" style="width:100%;"><i class="fa-solid fa-credit-card"></i> Ödemeye Geç</button>
             </div>
         </div>
@@ -1399,8 +1426,8 @@
                 <input type="hidden" id="add-product-page-store-id">
                 <input type="hidden" id="add-product-page-edit-id" value="">
                 <div class="input-group"><label id="add-product-page-title-label">Ürün Adı</label><input type="text" id="add-product-page-title-inp" required placeholder="Ürün adı"></div>
-                <div class="input-group"><label>Fiyat (EUR)</label><input type="number" id="add-product-page-price" required min="0" step="0.01" placeholder="0"></div>
-                <div class="input-group"><label>Orijinal Fiyat (EUR, indirim için)</label><input type="number" id="add-product-page-original-price" min="0" step="0.01" placeholder="Boş bırakırsanız indirim yok"></div>
+                <div class="input-group"><label>Fiyat (MKD)</label><input type="number" id="add-product-page-price" required min="0" step="0.01" placeholder="0"></div>
+                <div class="input-group"><label>Orijinal Fiyat (MKD, indirim için)</label><input type="number" id="add-product-page-original-price" min="0" step="0.01" placeholder="Boş bırakırsanız indirim yok"></div>
                 <div class="input-group"><label>Kategori</label><select id="add-product-page-category" required><option value="">Seçiniz</option><option value="Kadın">Kadın</option><option value="Erkek">Erkek</option><option value="Anne & Çocuk">Anne & Çocuk</option><option value="Ev & Yaşam">Ev & Yaşam</option><option value="Süpermarket">Süpermarket</option><option value="Kozmetik">Kozmetik</option><option value="Elektronik">Elektronik</option><option value="Spor">Spor</option></select></div>
                 <div class="input-group"><label>Materyal</label><select id="add-product-page-material" required><option value="">Seçiniz</option><option value="Pamuk">Pamuk</option><option value="Pamuk Polyester">Pamuk Polyester</option><option value="Polyester">Polyester</option></select></div>
                 <div class="input-group"><label>Renk</label><input type="text" id="add-product-page-color" required placeholder="Siyah, Beyaz..."></div>
@@ -1478,7 +1505,7 @@
             </div>
             <div id="admin-tab-settings" class="admin-tab-pane">
                 <div class="admin-section">
-                    <h3>Ücretli Ayrıcalık Fiyatları (EUR)</h3>
+                    <h3>Ücretli Ayrıcalık Fiyatları (MKD)</h3>
                     <div class="admin-settings-grid">
                         <div class="admin-setting-row"><label>Vitrin İlanı</label><input type="number" id="adm-price-vitrin" min="0" step="1"></div>
                         <div class="admin-setting-row"><label>Kalın Başlık</label><input type="number" id="adm-price-font" min="0" step="1"></div>
@@ -1611,7 +1638,7 @@
             <div class="input-group"><label>Ad</label><input type="text" id="adm-edit-name" placeholder="Ad Soyad"></div>
             <div class="input-group"><label>E-posta</label><input type="email" id="adm-edit-email" placeholder="email@example.com"></div>
             <div class="input-group">
-                <label>Kredi (EUR)</label>
+                <label>Kredi (MKD)</label>
                 <div style="display:flex;gap:8px;align-items:center;">
                     <input type="number" id="adm-edit-credit" min="0" step="1" style="flex:1;">
                     <button type="button" class="admin-btn-small" onclick="adminAdjustCredit(-10)">-10</button>
@@ -1685,10 +1712,8 @@
             <span class="close-btn" onclick="window.closeSupportModal()">&times;</span>
             <h2 class="modal-title"><i class="fa-solid fa-headset"></i> Destek Hattı</h2>
             <p>Bize ulaşın:</p>
-            <p><strong><i class="fa-solid fa-phone"></i> +389 70 XXX XXX</strong></p>
-            <p><strong><i class="fa-solid fa-envelope"></i> destek@alsat.mk</strong></p>
-            <p><strong><i class="fa-brands fa-whatsapp"></i> WhatsApp: +389 70 XXX XXX</strong></p>
-            <p class="support-hours"><small>Çalışma saatleri: Pzt-Cum 09:00-18:00</small></p>
+            <p><strong><i class="fa-solid fa-envelope"></i> <a href="mailto:info@alsatmk.com" style="color:inherit;text-decoration:none;">info@alsatmk.com</a></strong></p>
+            <p><strong><i class="fa-brands fa-whatsapp"></i> <a href="https://wa.me/38975641591" target="_blank" rel="noopener" style="color:#25D366;text-decoration:none;">WhatsApp: +389 75 641 591</a></strong></p>
         </div>
     </div>
 
@@ -1772,7 +1797,7 @@
             <form id="payment-form">
                 <div class="payment-header">
                     <div class="payment-amount">
-                        <label>Tutar (EUR)</label>
+                        <label>Tutar (MKD)</label>
                         <div class="amount-display" id="payment-amount">0</div>
                     </div>
                     <div class="payment-bonus">
@@ -1805,6 +1830,7 @@
     </div>
 
     <script src="translations.js"></script>
+    <script src="terms-content.js"></script>
     <script src="car-data.js"></script>
     <script src="stores-data.js"></script>
     <script src="jobs-data.js"></script>
