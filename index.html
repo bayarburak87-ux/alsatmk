@@ -57,15 +57,13 @@
             
             <div class="currency-widget" id="currency-widget" title="Döviz Kuru">
                 <i class="fa-solid fa-coins"></i>
-                <span id="currency-display">1 MKD</span>
+                <span id="currency-display">1 EUR</span>
                 <div class="currency-dropdown" id="currency-dropdown">
                     <div class="currency-rates" id="currency-rates"><span class="loading-rates">Yükleniyor...</span></div>
                     <div class="currency-converter">
                         <input type="number" id="currency-amount" value="1" min="0" step="0.01" placeholder="Miktar">
-                        <select id="currency-from"><option value="MKD" selected>MKD</option><option value="EUR">EUR</option><option value="TRY">TRY</option></select>
-                        <span>=</span>
-                        <span id="currency-result">-</span>
-                        <select id="currency-to"><option value="EUR" selected>EUR</option><option value="MKD">MKD</option><option value="TRY">TRY</option></select>
+                        <span class="currency-converter-equals">=</span>
+                        <div class="currency-result-multi" id="currency-result-multi"></div>
                     </div>
                 </div>
             </div>
@@ -146,7 +144,7 @@
                     <div class="mobile-currency-rates" id="mobile-currency-rates"></div>
                     <div class="mobile-currency-converter">
                         <input type="number" id="mobile-currency-amount" placeholder="Miktar" value="1" min="0" step="0.01" aria-label="Dönüştürülecek miktar">
-                        <span class="mobile-currency-unit">MKD</span>
+                        <span class="mobile-currency-unit">EUR</span>
                         <div class="mobile-currency-result" id="mobile-currency-result"></div>
                     </div>
                 </div>

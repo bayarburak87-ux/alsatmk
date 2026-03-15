@@ -857,8 +857,9 @@ body.light-theme select, body.light-theme textarea {
 .rate-line { font-size: 12px; color: var(--text-muted); padding: 4px 0; }
 .currency-converter { margin-top: 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; }
 .currency-converter input { width: 70px; padding: 6px 10px; }
-.currency-converter select { width: 60px; padding: 6px 8px; }
-.currency-converter #currency-result { font-weight: 700; color: var(--primary); }
+.currency-converter-equals { color: var(--text-muted); }
+.currency-result-multi { font-weight: 700; color: var(--primary); display: inline-flex; align-items: center; gap: 2px; }
+.currency-result-multi .rate-mkd, .currency-result-multi .rate-try { color: var(--primary); }
 
 .modern-submit-btn {
     width: 100%; background: linear-gradient(90deg, #f38332 0%, #ffcc00 100%);

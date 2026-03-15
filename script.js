@@ -752,22 +752,21 @@ function formatPrice(ad) {
 function updateCurrencyDisplay() {
     const r = window.exchangeRates || { EUR: 1, MKD: 61.5, TRY: 35 };
     const elt = el('currency-display');
-    if (elt) elt.textContent = '1 MKD = ' + (1 / (r.MKD || 61.5)).toFixed(4) + ' EUR';
+    const amt = parseFloat(el('currency-amount')?.value) || 1;
+    if (elt) elt.textContent = amt + ' EUR';
     const ratesDiv = el('currency-rates');
-    if (ratesDiv) ratesDiv.innerHTML = '<div class="rate-line">1 MKD = ' + (1/(r.MKD || 61.5)).toFixed(4) + ' EUR</div><div class="rate-line">1 EUR = ' + (r.MKD || 61.5).toFixed(2) + ' MKD</div>';
+    if (ratesDiv) ratesDiv.innerHTML = '<div class="rate-line">1 EUR = ' + (r.MKD || 61.5).toFixed(2) + ' MKD</div><div class="rate-line">1 EUR = ' + (r.TRY || 35).toFixed(2) + ' TRY</div>';
     updateCurrencyConverter();
 }
 function updateCurrencyConverter() {
     const r = window.exchangeRates || { EUR: 1, MKD: 61.5, TRY: 35 };
     const amount = parseFloat(el('currency-amount')?.value) || 1;
-    const from = el('currency-from')?.value || 'MKD';
-    const to = el('currency-to')?.value || 'EUR';
-    const rateFrom = r[from] || 1;
-    const rateTo = r[to] || 1;
-    const eurVal = amount / rateFrom;
-    const result = eurVal * rateTo;
-    const resEl = el('currency-result');
-    if (resEl) resEl.textContent = result.toFixed(2);
+    const mkd = (amount * (r.MKD || 61.5)).toFixed(2);
+    const try_ = (amount * (r.TRY || 35)).toFixed(2);
+    const resEl = el('currency-result-multi');
+    if (resEl) resEl.innerHTML = '<span class="rate-mkd">' + mkd + ' MKD</span><span class="rate-sep">, </span><span class="rate-try">' + try_ + ' TRY</span>';
+    const dispEl = el('currency-display');
+    if (dispEl) dispEl.textContent = amount + ' EUR';
 }
 function initCurrencyWidget() {
     const w = el('currency-widget');
@@ -780,13 +779,17 @@ function initCurrencyWidget() {
         if (e.target.closest('#currency-dropdown')) return;
         dd.classList.toggle('open');
     });
+    dd.addEventListener('click', function(e) { e.stopPropagation(); });
+    dd.addEventListener('mousedown', function(e) { e.stopPropagation(); });
     document.addEventListener('click', function(e) {
         if (!e.target.closest('#currency-widget')) dd?.classList.remove('open');
     });
-    el('currency-amount')?.addEventListener('input', updateCurrencyConverter);
-    el('currency-amount')?.addEventListener('change', updateCurrencyConverter);
-    el('currency-from')?.addEventListener('change', updateCurrencyConverter);
-    el('currency-to')?.addEventListener('change', updateCurrencyConverter);
+    var amtEl = el('currency-amount');
+    if (amtEl) {
+        amtEl.addEventListener('input', updateCurrencyConverter);
+        amtEl.addEventListener('change', updateCurrencyConverter);
+        amtEl.addEventListener('focus', function() { dd.classList.add('open'); });
+    }
 }
 window.openSupportModal = function() { el('support-modal').style.display = 'flex'; el('support-modal')?.classList.add('active'); };
 window.closeSupportModal = function() { el('support-modal').style.display = 'none'; el('support-modal')?.classList.remove('active'); };
@@ -910,7 +913,9 @@ function showToast(messageOrKey, type = 'success', duration = 3000) {
 
 // ========== USER SESSION ==========
 function getCurrentUser() {
-    const u = JSON.parse(localStorage.getItem('currentUser') || 'null');
+    var u = null;
+    try { u = JSON.parse(sessionStorage.getItem('alsat_currentUser') || 'null'); } catch(e) {}
+    if (!u) try { u = JSON.parse(localStorage.getItem('alsat_currentUser') || 'null'); } catch(e) {}
     if (!u) return null;
     const db = window.usersDatabase || {};
     const udb = db[u.id];
@@ -918,13 +923,23 @@ function getCurrentUser() {
     return u;
 }
 
-function setCurrentUser(user) {
-    localStorage.setItem('currentUser', JSON.stringify(user));
+function setCurrentUser(user, remember) {
+    if (remember === undefined) {
+        remember = !!localStorage.getItem('alsat_currentUser');
+    }
+    sessionStorage.removeItem('alsat_currentUser');
+    localStorage.removeItem('alsat_currentUser');
+    if (remember) {
+        localStorage.setItem('alsat_currentUser', JSON.stringify(user));
+    } else {
+        sessionStorage.setItem('alsat_currentUser', JSON.stringify(user));
+    }
     window.userSession.user = user;
 }
 
 function logout() {
-    localStorage.removeItem('currentUser');
+    sessionStorage.removeItem('alsat_currentUser');
+    localStorage.removeItem('alsat_currentUser');
     window.userSession.user = null;
     updateHeaderUI();
     hideProfileDropdown();
@@ -1627,16 +1642,17 @@ function renderAdminUsers() {
     users.sort((a,b) => (b.id || 0) - (a.id || 0));
     if (!list) return;
     if (users.length === 0) { list.innerHTML = '<p class="admin-empty">' + t('userNotFound') + '</p>'; return; }
-    list.innerHTML = users.map(u => `
-        <div class="admin-user-row">
+    list.innerHTML = users.map(u => {
+        const createdAt = u.created_at || u.createdAt ? (typeof u.created_at === 'string' ? new Date(u.created_at).toLocaleDateString('tr-TR') : (u.createdAt ? new Date(u.createdAt).toLocaleDateString('tr-TR') : '')) : '';
+        return `<div class="admin-user-row">
             <div class="admin-user-info">
                 <strong>${escapeHtml(u.name || 'İsimsiz')}</strong>
                 <span>${escapeHtml(u.email || '-')} · ID: ${u.id}</span>
-                <span>Kredi: ${u.credit} MKD ${u.verifiedUntil ? '· Onaylı: ' + u.verifiedUntil : ''} ${u.banned ? '· <span class="badge-banned">ENGELLİ</span>' : ''}</span>
+                <span>${u.phone ? 'Tel: ' + escapeHtml(u.phone) + ' · ' : ''}${createdAt ? 'Kayıt: ' + createdAt + ' · ' : ''}Kredi: ${u.credit} MKD ${u.verifiedUntil ? '· Onaylı: ' + u.verifiedUntil : ''} ${u.banned ? '· <span class="badge-banned">ENGELLİ</span>' : ''}</span>
             </div>
             <button type="button" class="admin-edit-btn" data-user-id="${u.id}"><i class="fa-solid fa-pen"></i></button>
-        </div>
-    `).join('');
+        </div>`;
+    }).join('');
 }
 
 window.openAdminUserModal = function(userId) {
@@ -2053,8 +2069,9 @@ function refreshHomepageContent() {
     if (!grid) return;
     const L = window.TRANSLATIONS?.[window.currentLang] || window.TRANSLATIONS?.mk || {};
     const cats = (window.CATEGORIES_TREE || []).filter(g => g.id !== 'all');
+    const catMap = L.categories || {};
     grid.innerHTML = cats.map(g => {
-        const label = L[g.labelKey] || g.labelKey;
+        const label = catMap[g.labelKey] || catMap[g.id] || g.labelKey || g.id;
         return `<a href="javascript:void(0)" class="homepage-cat-item" data-homepage-cat="${g.id}"><i class="fa-solid ${g.icon || 'fa-folder'}"></i>${label}</a>`;
     }).join('');
     const regions = el('homepage-regions');
@@ -4925,13 +4942,14 @@ el('login-formu')?.addEventListener('submit', async function(e) {
     e.preventDefault();
     const email = (el('login-username')?.value || '').trim();
     const password = (el('login-password')?.value || '').trim();
+    const remember = !!(el('remember-login')?.checked);
     if (!email) { showToast('loginRequired', 'warning', 2000); return; }
     if (window.API_BASE && window.AlsatAPI) {
         try {
             const user = await window.AlsatAPI.login(email, password);
             if (user && user.id) {
                 getOrCreateUser(user.id, user.email, user.name);
-                setCurrentUser(user);
+                setCurrentUser(user, remember);
                 updateHeaderUI();
                 closeLoginModal();
                 showToast('loginSuccess', 'success', 2000);
@@ -4950,7 +4968,7 @@ el('login-formu')?.addEventListener('submit', async function(e) {
     }
     const user = existing ? { id: existing.id, email: existing.email, name: existing.name } : { id: Date.now(), email, name: email.split('@')[0] || 'Kullanıcı' };
     getOrCreateUser(user.id, user.email, user.name);
-    setCurrentUser(user);
+    setCurrentUser(user, remember);
     updateHeaderUI();
     closeLoginModal();
     showToast('loginSuccess', 'success', 2000);
@@ -5266,13 +5284,11 @@ document.addEventListener('DOMContentLoaded', async function() {
     if (window.API_BASE && window.AlsatAPI) {
         try {
             const ads = await window.AlsatAPI.fetchAdsFull();
-            if (ads && ads.length > 0) {
-                window.adsDatabase = window.AlsatAPI.normalizeAds(ads);
-                saveAdsDatabase();
-                if (typeof applyFilters === 'function') applyFilters();
-            }
+            window.adsDatabase = window.AlsatAPI.normalizeAds(Array.isArray(ads) ? ads : []);
+            saveAdsDatabase();
+            if (typeof applyFilters === 'function') applyFilters();
             const users = await window.AlsatAPI.fetchUsers();
-            if (users && typeof users === 'object' && Object.keys(users).length > 0) {
+            if (users && typeof users === 'object') {
                 window.usersDatabase = users;
                 saveUsersDatabase();
             }
@@ -5511,7 +5527,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             if (u.banned) {
                 const cur = getCurrentUser();
                 var curId = cur && (cur.id || cur.userId);
-                if (cur && (curId == id || curId == numId || Number(curId) === numId)) { localStorage.removeItem('currentUser'); window.userSession.user = null; updateHeaderUI(); hideProfileDropdown(); }
+                if (cur && (curId == id || curId == numId || Number(curId) === numId)) { sessionStorage.removeItem('alsat_currentUser'); localStorage.removeItem('alsat_currentUser'); window.userSession.user = null; updateHeaderUI(); hideProfileDropdown(); }
             }
         }
         saveCredits();
