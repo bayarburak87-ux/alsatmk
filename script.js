@@ -452,6 +452,12 @@ function getDefaultAds() {
 loadUsersDatabase();
 
 (function() {
+    if (localStorage.getItem('alsat_ads_cleared') === '1') {
+        localStorage.removeItem('alsat_ads_cleared');
+        window.adsDatabase = [];
+        localStorage.setItem('adsDatabase', '[]');
+        return;
+    }
     const stored = localStorage.getItem('adsDatabase');
     let ads = [];
     if (stored) {
@@ -5446,6 +5452,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             const db = window.usersDatabase || {};
             const admin = Object.values(db).find(u => (u.email || '').toLowerCase() === adminEmail);
             window.adsDatabase = [];
+            localStorage.setItem('alsat_ads_cleared', '1');
             window.usersDatabase = admin ? { [String(admin.id)]: admin } : {};
             window.favorites = [];
             window.favoriteLists = {};

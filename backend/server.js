@@ -313,20 +313,24 @@ app.post('/api/admin/reset', async (req, res) => {
     return res.status(403).json({ error: 'Yetkisiz' });
   }
   try {
-    const { sql: delFavSql } = paramStyle('DELETE FROM favorites', []);
-    await db.runAsync(delFavSql, []);
-    const { sql: delAdsSql } = paramStyle('DELETE FROM ads', []);
-    await db.runAsync(delAdsSql, []);
+    const del = async (sql, params = []) => {
+      const { sql: s, params: p } = paramStyle(sql, params);
+      await db.runAsync(s, p);
+    };
+    try { await del('DELETE FROM messages'); } catch (e) { /* tablo yoksa ignore */ }
+    try { await del('DELETE FROM conversations'); } catch (e) { /* tablo yoksa ignore */ }
+    await del('DELETE FROM favorites');
+    await del('DELETE FROM ads');
     const { sql: admSql, params: admParams } = paramStyle('SELECT id FROM users WHERE LOWER(TRIM(email)) = ?', [ADMIN_EMAIL]);
     const adminRow = await db.getAsync(admSql, admParams);
     if (adminRow) {
-      const { sql: delSql, params: delParams } = paramStyle('DELETE FROM users WHERE id != ?', [adminRow.id]);
-      await db.runAsync(delSql, delParams);
+      await del('DELETE FROM users WHERE id != ?', [adminRow.id]);
     } else {
-      await db.runAsync('DELETE FROM users', []);
+      await del('DELETE FROM users');
     }
     res.json({ ok: true });
   } catch (e) {
+    console.error('Admin reset error:', e);
     res.status(500).json({ error: e.message });
   }
 });
