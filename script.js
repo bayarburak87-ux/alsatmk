@@ -453,20 +453,26 @@ loadUsersDatabase();
 
 (function() {
     const stored = localStorage.getItem('adsDatabase');
-    let ads = stored ? JSON.parse(stored) : getDefaultAds();
-    if (ads.length < 50) {
-        ads = getDefaultAds();
-        localStorage.setItem('adsDatabase', JSON.stringify(ads));
-    } else {
-        const now = new Date();
-        const allExpired = ads.every(ad => {
-            const exp = ad.expiryAt ? new Date(ad.expiryAt) : null;
-            return exp && exp < now;
-        });
-        if (allExpired && ads.length > 0) {
+    let ads = [];
+    if (stored) {
+        try { ads = JSON.parse(stored); } catch(e) { ads = getDefaultAds(); }
+        if (ads.length < 50 && stored !== '[]') {
             ads = getDefaultAds();
             localStorage.setItem('adsDatabase', JSON.stringify(ads));
+        } else if (ads.length >= 50) {
+            const now = new Date();
+            const allExpired = ads.every(ad => {
+                const exp = ad.expiryAt ? new Date(ad.expiryAt) : null;
+                return exp && exp < now;
+            });
+            if (allExpired && ads.length > 0) {
+                ads = getDefaultAds();
+                localStorage.setItem('adsDatabase', JSON.stringify(ads));
+            }
         }
+    } else {
+        ads = getDefaultAds();
+        localStorage.setItem('adsDatabase', JSON.stringify(ads));
     }
     window.adsDatabase = ads;
 })();
