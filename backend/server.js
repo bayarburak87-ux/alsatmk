@@ -313,10 +313,10 @@ app.post('/api/admin/reset', async (req, res) => {
     return res.status(403).json({ error: 'Yetkisiz' });
   }
   try {
-    const { sql: delAdsSql } = paramStyle('DELETE FROM ads', []);
-    await db.runAsync(delAdsSql, []);
     const { sql: delFavSql } = paramStyle('DELETE FROM favorites', []);
     await db.runAsync(delFavSql, []);
+    const { sql: delAdsSql } = paramStyle('DELETE FROM ads', []);
+    await db.runAsync(delAdsSql, []);
     const { sql: admSql, params: admParams } = paramStyle('SELECT id FROM users WHERE LOWER(TRIM(email)) = ?', [ADMIN_EMAIL]);
     const adminRow = await db.getAsync(admSql, admParams);
     if (adminRow) {
