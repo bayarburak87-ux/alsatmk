@@ -452,35 +452,8 @@ function getDefaultAds() {
 loadUsersDatabase();
 
 (function() {
-    if (localStorage.getItem('alsat_ads_cleared') === '1') {
-        localStorage.removeItem('alsat_ads_cleared');
-        window.adsDatabase = [];
-        localStorage.setItem('adsDatabase', '[]');
-        return;
-    }
-    const stored = localStorage.getItem('adsDatabase');
-    let ads = [];
-    if (stored) {
-        try { ads = JSON.parse(stored); } catch(e) { ads = getDefaultAds(); }
-        if (ads.length < 50 && stored !== '[]') {
-            ads = getDefaultAds();
-            localStorage.setItem('adsDatabase', JSON.stringify(ads));
-        } else if (ads.length >= 50) {
-            const now = new Date();
-            const allExpired = ads.every(ad => {
-                const exp = ad.expiryAt ? new Date(ad.expiryAt) : null;
-                return exp && exp < now;
-            });
-            if (allExpired && ads.length > 0) {
-                ads = getDefaultAds();
-                localStorage.setItem('adsDatabase', JSON.stringify(ads));
-            }
-        }
-    } else {
-        ads = getDefaultAds();
-        localStorage.setItem('adsDatabase', JSON.stringify(ads));
-    }
-    window.adsDatabase = ads;
+    window.adsDatabase = [];
+    localStorage.setItem('adsDatabase', '[]');
 })();
 
 window.favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
@@ -5452,7 +5425,6 @@ document.addEventListener('DOMContentLoaded', async function() {
             const db = window.usersDatabase || {};
             const admin = Object.values(db).find(u => (u.email || '').toLowerCase() === adminEmail);
             window.adsDatabase = [];
-            localStorage.setItem('alsat_ads_cleared', '1');
             window.usersDatabase = admin ? { [String(admin.id)]: admin } : {};
             window.favorites = [];
             window.favoriteLists = {};
