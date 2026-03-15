@@ -540,7 +540,9 @@ const DEFAULT_SITE_SETTINGS = {
 function getSiteSettings() {
     const stored = localStorage.getItem('alsat_site_settings');
     if (!stored) return { ...DEFAULT_SITE_SETTINGS, premiumPrices: { ...DEFAULT_SITE_SETTINGS.premiumPrices } };
-    const parsed = JSON.parse(stored);
+    var parsed;
+    try { parsed = JSON.parse(stored); } catch (e) { return { ...DEFAULT_SITE_SETTINGS, premiumPrices: { ...DEFAULT_SITE_SETTINGS.premiumPrices } }; }
+    if (!parsed || typeof parsed !== 'object') return { ...DEFAULT_SITE_SETTINGS, premiumPrices: { ...DEFAULT_SITE_SETTINGS.premiumPrices } };
     return {
         premiumPrices: { ...DEFAULT_SITE_SETTINGS.premiumPrices, ...(parsed.premiumPrices || {}) },
         bumpPrice: parsed.bumpPrice ?? DEFAULT_SITE_SETTINGS.bumpPrice,
@@ -5596,30 +5598,38 @@ document.addEventListener('DOMContentLoaded', async function() {
     el('adm-approve-confirm')?.addEventListener('click', function() { window.closeAdminApproveModal(); });
     el('admin-save-settings')?.addEventListener('click', function() {
         if (!isAdmin()) return;
-        const s = {
+        var cur = getSiteSettings();
+        var num = function(val, def) { var n = parseInt(val, 10); return isNaN(n) ? def : n; };
+        var updated = {
             premiumPrices: {
-                vitrin: parseInt(el('adm-price-vitrin')?.value) || 5,
-                font: parseInt(el('adm-price-font')?.value) || 2,
-                urgent: parseInt(el('adm-price-urgent')?.value) || 3,
-                stats: parseInt(el('adm-price-stats')?.value) || 4,
-                extend: parseInt(el('adm-price-extend')?.value) || 3,
-                multicity: parseInt(el('adm-price-multicity')?.value) || 6,
-                verified: parseInt(el('adm-price-verified')?.value) || 8
+                vitrin: num(el('adm-price-vitrin')?.value, cur.premiumPrices.vitrin),
+                font: num(el('adm-price-font')?.value, cur.premiumPrices.font),
+                urgent: num(el('adm-price-urgent')?.value, cur.premiumPrices.urgent),
+                stats: num(el('adm-price-stats')?.value, cur.premiumPrices.stats),
+                extend: num(el('adm-price-extend')?.value, cur.premiumPrices.extend),
+                multicity: num(el('adm-price-multicity')?.value, cur.premiumPrices.multicity),
+                verified: num(el('adm-price-verified')?.value, cur.premiumPrices.verified)
             },
-            bumpPrice: parseInt(el('adm-price-bump')?.value) || 2,
-            maxPhotos: parseInt(el('adm-max-photos')?.value) || 15,
-            maxVideoSeconds: parseInt(el('adm-max-video')?.value) || 30,
-            defaultAdDays: parseInt(el('adm-default-days')?.value) || 30,
-            extendedAdDays: parseInt(el('adm-extended-days')?.value) || 60,
-            whatsappNumber: (el('adm-whatsapp')?.value || '').trim() || '+38970000000',
-            viberNumber: (el('adm-viber')?.value || '').trim() || '+38970000000',
+            bumpPrice: num(el('adm-price-bump')?.value, cur.bumpPrice),
+            maxPhotos: num(el('adm-max-photos')?.value, cur.maxPhotos),
+            maxVideoSeconds: num(el('adm-max-video')?.value, cur.maxVideoSeconds),
+            defaultAdDays: num(el('adm-default-days')?.value, cur.defaultAdDays),
+            extendedAdDays: num(el('adm-extended-days')?.value, cur.extendedAdDays),
+            whatsappNumber: (el('adm-whatsapp')?.value || '').trim() || (cur.whatsappNumber || '+38970000000'),
+            viberNumber: (el('adm-viber')?.value || '').trim() || (cur.viberNumber || '+38970000000'),
             adRequiresApproval: !!el('adm-ad-requires-approval')?.checked,
-            sellerAppMsgIntro: (el('adm-seller-msg-intro')?.value || '').trim(),
-            sellerAppMsgConfirm: (el('adm-seller-msg-confirm')?.value || '').trim()
+            sellerAppMsgIntro: (el('adm-seller-msg-intro')?.value || '').trim() || (cur.sellerAppMsgIntro || ''),
+            sellerAppMsgConfirm: (el('adm-seller-msg-confirm')?.value || '').trim() || (cur.sellerAppMsgConfirm || '')
         };
-        saveSiteSettings(s);
-        updatePremiumLabels();
-        showToast('saved', 'success', 2000);
+        var s = { ...cur, ...updated, premiumPrices: { ...cur.premiumPrices, ...updated.premiumPrices } };
+        try {
+            localStorage.setItem('alsat_site_settings', JSON.stringify(s));
+            updatePremiumLabels();
+            showToast('saved', 'success', 2000);
+        } catch (e) {
+            console.error('Site ayarları kaydedilemedi:', e);
+            showToast('Kaydetme hatası', 'error', 3000);
+        }
     });
     el('logout-link')?.addEventListener('click', function(e) {
         e.preventDefault();
