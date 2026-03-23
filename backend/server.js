@@ -9,6 +9,7 @@ const cors = require('cors');
 const path = require('path');
 const db = require('./db');
 const { sendVerificationCode } = require('./mail');
+const { createToken, jwtMiddleware, hashPassword, comparePassword, rateLimit } = require('./security');
 
 // Doğrulama kodları (e-posta -> { code, expires, type })
 const verificationCodes = new Map();
@@ -36,6 +37,7 @@ const PORT = process.env.PORT || 3001;
 
 app.use(cors({ origin: true })); // Tüm origin'lere izin (production'da kısıtlayın)
 app.use(express.json({ limit: '10mb' }));
+app.use(rateLimit);
 
 const driver = process.env.DB_DRIVER || 'sqlite';
 const isSqlite = driver === 'sqlite';
@@ -103,9 +105,10 @@ app.get('/api/ads/:id', async (req, res) => {
   }
 });
 
-app.post('/api/ads', async (req, res) => {
+app.post('/api/ads', jwtMiddleware, async (req, res) => {
   try {
     const d = req.body;
+    const userId = req.user.id;
     const images = JSON.stringify(d.images || []);
     const attrs = JSON.stringify(d.attrs || {});
     const priceHistory = JSON.stringify(d.priceHistory || [{ price: d.price, currency: d.currency || 'MKD', date: new Date().toISOString() }]);
@@ -115,7 +118,7 @@ app.post('/api/ads', async (req, res) => {
     const expiryAt = expiry.toISOString().slice(0, 10);
     const insertCols = 'user_id, title, price, currency, category, sub_category, city, district, description, images, attrs, condition, seller_type, status, accept_trade, price_history, created_at, expiry_at';
     const insertVals = '?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?';
-    const insertParams = [d.userId, d.title, d.price, d.currency || 'MKD', d.category, d.subCategory, d.city, d.district, d.description || '', images, attrs, d.condition || 'İkinci El', d.sellerType || 'Sahibinden', d.status || 'pending', d.acceptTrade ? 1 : 0, priceHistory, createdAt, expiryAt];
+    const insertParams = [userId, d.title, d.price, d.currency || 'MKD', d.category, d.subCategory, d.city, d.district, d.description || '', images, attrs, d.condition || 'İkinci El', d.sellerType || 'Sahibinden', d.status || 'pending', d.acceptTrade ? 1 : 0, priceHistory, createdAt, expiryAt];
     let insertSql = `INSERT INTO ads (${insertCols}) VALUES (${insertVals})`;
     if (driver === 'postgres') insertSql += ' RETURNING id';
     const { sql: s, params: p } = paramStyle(insertSql, insertParams);
@@ -169,8 +172,7 @@ app.get('/api/users/:id', async (req, res) => {
 app.post('/api/auth/register', async (req, res) => {
   try {
     const { email, name, password } = req.body;
-    const bcrypt = require('bcryptjs');
-    const hash = bcrypt.hashSync(password || '', 10);
+    const hash = hashPassword(password);
     const { sql: s, params: p } = paramStyle('INSERT INTO users (email, name, password_hash) VALUES (?, ?, ?)', [email, name || 'Kullanıcı', hash]);
     const r = await db.runAsync(s, p);
     res.status(201).json({ id: r.insertId || r.insert_id });
@@ -215,8 +217,7 @@ app.post('/api/auth/verify-register', async (req, res) => {
     if (!verifyCode(em, code, 'register')) {
       return res.status(400).json({ error: 'Geçersiz veya süresi dolmuş kod' });
     }
-    const bcrypt = require('bcryptjs');
-    const hash = bcrypt.hashSync(password, 10);
+    const hash = hashPassword(password);
     const phoneVal = (phone || '').trim();
     const { sql: s, params: p } = paramStyle('INSERT INTO users (email, name, password_hash, phone) VALUES (?, ?, ?, ?)', [em, (name || '').trim() || em.split('@')[0], hash, phoneVal]);
     const r = await db.runAsync(s, p);
@@ -236,8 +237,7 @@ app.post('/api/auth/verify-forgot', async (req, res) => {
     if (!verifyCode(em, code, 'forgot')) {
       return res.status(400).json({ error: 'Geçersiz veya süresi dolmuş kod' });
     }
-    const bcrypt = require('bcryptjs');
-    const hash = bcrypt.hashSync(newPassword, 10);
+    const hash = hashPassword(newPassword);
     const { sql: s1, params: p1 } = paramStyle('SELECT id FROM users WHERE LOWER(TRIM(email)) = ?', [em]);
     const row = await db.getAsync(s1, p1);
     if (!row) return res.status(404).json({ error: 'Kullanıcı bulunamadı' });
@@ -258,20 +258,24 @@ app.post('/api/auth/login', async (req, res) => {
     const row = await db.getAsync(s, p);
     if (!row) return res.status(401).json({ error: 'E-posta veya şifre hatalı' });
     if (row.banned) return res.status(403).json({ error: 'Hesabınız engellenmiş' });
-    const bcrypt = require('bcryptjs');
-    if (!bcrypt.compareSync(password, row.password_hash || '')) {
+    if (!comparePassword(password, row.password_hash)) {
       return res.status(401).json({ error: 'E-posta veya şifre hatalı' });
     }
-    res.json({ id: row.id, email: row.email, name: row.name });
+    const token = createToken({ id: row.id, email: row.email });
+    res.json({ id: row.id, email: row.email, name: row.name, token });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
 });
 
 // ========== FAVORİLER ==========
-app.get('/api/favorites/:userId', async (req, res) => {
+app.get('/api/favorites/:userId', jwtMiddleware, async (req, res) => {
   try {
-    const { sql: s, params: p } = paramStyle('SELECT ad_id FROM favorites WHERE user_id = ?', [parseInt(req.params.userId)]);
+    const userId = req.user.id;
+    if (parseInt(req.params.userId) !== userId) {
+      return res.status(403).json({ error: 'Yetkisiz' });
+    }
+    const { sql: s, params: p } = paramStyle('SELECT ad_id FROM favorites WHERE user_id = ?', [userId]);
     const rows = await db.queryAsync(s, p);
     res.json(rows.map(r => r.ad_id));
   } catch (e) {
@@ -279,9 +283,10 @@ app.get('/api/favorites/:userId', async (req, res) => {
   }
 });
 
-app.post('/api/favorites', async (req, res) => {
+app.post('/api/favorites', jwtMiddleware, async (req, res) => {
   try {
-    const { userId, adId } = req.body;
+    const userId = req.user.id;
+    const { adId } = req.body;
     let sql = 'INSERT INTO favorites (user_id, ad_id) VALUES (?, ?)';
     if (driver === 'postgres') sql += ' ON CONFLICT (user_id, ad_id) DO NOTHING';
     else if (driver === 'mysql') sql += ' ON DUPLICATE KEY UPDATE ad_id = VALUES(ad_id)';
@@ -294,9 +299,13 @@ app.post('/api/favorites', async (req, res) => {
   }
 });
 
-app.delete('/api/favorites/:userId/:adId', async (req, res) => {
+app.delete('/api/favorites/:userId/:adId', jwtMiddleware, async (req, res) => {
   try {
-    const { sql: s, params: p } = paramStyle('DELETE FROM favorites WHERE user_id = ? AND ad_id = ?', [parseInt(req.params.userId), parseInt(req.params.adId)]);
+    const userId = req.user.id;
+    if (parseInt(req.params.userId) !== userId) {
+      return res.status(403).json({ error: 'Yetkisiz' });
+    }
+    const { sql: s, params: p } = paramStyle('DELETE FROM favorites WHERE user_id = ? AND ad_id = ?', [userId, parseInt(req.params.adId)]);
     await db.runAsync(s, p);
     res.json({ ok: true });
   } catch (e) {
