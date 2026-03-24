@@ -1878,11 +1878,12 @@
     <script src="car-data.js"></script>
     <script src="stores-data.js"></script>
     <script src="jobs-data.js"></script>
-    <!-- API: Her zaman mevcut host (www.alsatmk.com veya localhost:3001) -->
+    <!-- API: Backend Railway -->
+    <script>window.ALSAT_API_URL='https://alsatmk-production.up.railway.app';</script>
     <script>
     (function(){
         var h=location.hostname||'';
-        window.API_BASE=(h==='localhost'||h==='127.0.0.1')?'http://localhost:3001':(location.protocol+'//'+location.host);
+        if(!window.ALSAT_API_URL) window.API_BASE=(h==='localhost'||h==='127.0.0.1')?'http://localhost:3001':(location.protocol+'//'+location.host);
     })();
     </script>
     <script src="api.js"></script>
