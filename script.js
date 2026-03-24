@@ -599,11 +599,14 @@ function getOrCreateUser(id, email, name, phone) {
     return u;
 }
 
-// Admin panel - sadece bu e-posta ile giriş yapan erişebilir (site sahibi kendi e-postasını yazar)
-const ADMIN_EMAIL = 'info@alsatmk.com';
+// Admin panel - backend'den gelen isAdmin veya e-posta kontrolü
+var ADMIN_EMAIL = 'info@alsatmk.com';
 function isAdmin() {
     const u = getCurrentUser();
-    return u && (u.email || '').toLowerCase() === ADMIN_EMAIL.toLowerCase();
+    if (!u) return false;
+    if (u.isAdmin === true) return true;
+    const adminEm = (window.ADMIN_EMAIL || ADMIN_EMAIL || 'info@alsatmk.com').toLowerCase().trim();
+    return (u.email || '').toLowerCase().trim() === adminEm;
 }
 
 // Alsat Store - sadece admin görebilir; kullanıcılar sadece 2. el ilanlara odaklanır
@@ -5210,6 +5213,7 @@ el('login-formu')?.addEventListener('submit', async function(e) {
             const user = await window.AlsatAPI.login(email, password, recaptchaToken);
             if (user && user.id) {
                 getOrCreateUser(user.id, user.email, user.name);
+                if (user.isAdmin !== undefined) user.isAdmin = !!user.isAdmin;
                 setCurrentUser(user, remember);
                 try {
                     const apiFavs = await window.AlsatAPI.getFavorites(user.id);
@@ -5570,6 +5574,16 @@ document.addEventListener('DOMContentLoaded', async function() {
             }
             const cur = getCurrentUser();
             if (cur && cur.id && window.AlsatAPI.isLoggedIn && window.AlsatAPI.isLoggedIn()) {
+                try {
+                    const fresh = await window.AlsatAPI.me();
+                    if (fresh && fresh.id) {
+                        cur.isAdmin = !!fresh.isAdmin;
+                        cur.email = fresh.email || cur.email;
+                        cur.name = fresh.name || cur.name;
+                        setCurrentUser(cur, !!localStorage.getItem('alsat_currentUser'));
+                        if (typeof updateHeaderUI === 'function') updateHeaderUI();
+                    }
+                } catch (e) {}
                 const apiFavs = await window.AlsatAPI.getFavorites(cur.id);
                 if (Array.isArray(apiFavs)) window.favorites = apiFavs;
             }

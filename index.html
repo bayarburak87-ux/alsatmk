@@ -1893,6 +1893,7 @@
                 var s=document.createElement('script'); s.src='https://www.google.com/recaptcha/api.js?render='+c.recaptchaSiteKey; s.async=true; document.head.appendChild(s);
             }
             if (c.vapidPublicKey) window.VAPID_PUBLIC_KEY = c.vapidPublicKey;
+            if (c.adminEmail) { window.ADMIN_EMAIL = c.adminEmail; if (typeof updateHeaderUI === 'function') updateHeaderUI(); }
         }).catch(function(){});
     }
     (function(){ if(window.openStoresPage) return; window.openStoresPage = function(){ var sp = document.getElementById('stores-page'); if(!sp) return; document.querySelectorAll('.profile-page-container').forEach(function(p){ p.style.display = 'none'; }); var hv = document.getElementById('homepage-view'); var lv = document.getElementById('listing-view'); if(hv) hv.style.display = 'none'; if(lv) lv.style.display = 'none'; sp.style.display = 'block'; }; })();

@@ -458,7 +458,8 @@ app.post('/api/auth/login', loginRules, handleValidation, async (req, res, next)
     recordLoginSuccess(ip);
     const token = createToken({ id: row.id, email: row.email });
     const refreshToken = createRefreshToken({ id: row.id, email: row.email });
-    res.json({ id: row.id, email: row.email, name: row.name, token, refreshToken });
+    const isAdmin = (row.email || '').toLowerCase() === (config.admin.email || '').toLowerCase();
+    res.json({ id: row.id, email: row.email, name: row.name, token, refreshToken, isAdmin });
   } catch (e) {
     next(e);
   }
@@ -482,7 +483,8 @@ app.get('/api/auth/me', jwtMiddleware, async (req, res, next) => {
     const row = await db.getAsync(s, p);
     if (!row) return res.status(404).json({ error: 'Kullanıcı bulunamadı' });
     if (row.banned) return res.status(403).json({ error: 'Hesabınız engellenmiş' });
-    res.json({ id: row.id, email: row.email, name: row.name, phone: row.phone });
+    const isAdmin = (row.email || '').toLowerCase() === (config.admin.email || '').toLowerCase();
+    res.json({ id: row.id, email: row.email, name: row.name, phone: row.phone, isAdmin });
   } catch (e) {
     next(e);
   }
@@ -957,7 +959,8 @@ app.post('/api/admin/reports/:id/action', async (req, res, next) => {
 app.get('/api/config', (req, res) => {
   res.json({
     recaptchaSiteKey: config.recaptcha?.siteKey || '',
-    vapidPublicKey: config.vapid?.publicKey || ''
+    vapidPublicKey: config.vapid?.publicKey || '',
+    adminEmail: (config.admin.email || 'info@alsatmk.com').toLowerCase()
   });
 });
 
