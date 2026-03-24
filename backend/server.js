@@ -96,11 +96,6 @@ app.use('/api', (req, res, next) => {
   next();
 });
 
-// API ana sayfa (localhost:3001 açıldığında)
-app.get('/', (req, res) => {
-  res.json({ message: 'Alsat API çalışıyor', docs: '/api-docs', health: '/api/health' });
-});
-
 // Ping endpoint - frontend periyodik çağırır (online sayım için)
 app.get('/api/ping', (req, res) => {
   res.json({ ok: true, ts: Date.now() });
@@ -994,6 +989,9 @@ const swaggerSpec = swaggerJsdoc({
 });
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, { explorer: true }));
 
+// Frontend - siteyi backend ile birlikte sun (http://localhost:3001)
+app.use(express.static(path.join(__dirname, '..'), { index: 'index.html' }));
+
 app.use(notFound);
 app.use(errorHandler);
 
@@ -1018,7 +1016,7 @@ async function seedAdminIfEmpty() {
 
 if (require.main === module) {
   const server = app.listen(config.port, async () => {
-    logger.info(`Alsat API: http://localhost:${config.port} | DB: ${driver}`);
+    logger.info(`Alsat: http://localhost:${config.port} (Site + API) | DB: ${driver}`);
     await seedAdminIfEmpty();
   });
 }

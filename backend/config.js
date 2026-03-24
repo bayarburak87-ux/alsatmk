@@ -35,7 +35,7 @@ module.exports = {
   },
 
   admin: {
-    email: (process.env.ADMIN_EMAIL || 'bayarburak87@gmail.com').toLowerCase(),
+    email: (process.env.ADMIN_EMAIL || 'info@alsatmk.com').toLowerCase(),
     resetToken: process.env.ADMIN_RESET_TOKEN
   },
 

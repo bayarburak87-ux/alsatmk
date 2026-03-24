@@ -600,7 +600,7 @@ function getOrCreateUser(id, email, name, phone) {
 }
 
 // Admin panel - sadece bu e-posta ile giriş yapan erişebilir (site sahibi kendi e-postasını yazar)
-const ADMIN_EMAIL = 'bayarburak87@gmail.com';
+const ADMIN_EMAIL = 'info@alsatmk.com';
 function isAdmin() {
     const u = getCurrentUser();
     return u && (u.email || '').toLowerCase() === ADMIN_EMAIL.toLowerCase();
@@ -957,9 +957,11 @@ function updateHeaderUI() {
     var mobileMsgBadge = el('mobile-msg-badge');
     var mobileNotifBadge = el('mobile-notif-badge');
 
+    const adminHeaderBtn = el('admin-header-btn');
     if (user) {
         if (loginBtn) loginBtn.style.display = 'none';
         if (profileBtn) profileBtn.style.display = 'flex';
+        if (adminHeaderBtn) adminHeaderBtn.style.display = isAdmin() ? 'flex' : 'none';
         const profileTxt = el('profile-text');
         if (profileTxt) profileTxt.textContent = user.name || t('profile');
         const mobileProfileTxt = el('mobile-profile-text');
@@ -994,6 +996,7 @@ function updateHeaderUI() {
     } else {
         if (loginBtn) loginBtn.style.display = 'flex';
         if (profileBtn) profileBtn.style.display = 'none';
+        if (adminHeaderBtn) adminHeaderBtn.style.display = 'none';
         if (logoutBtn) logoutBtn.style.display = 'none';
         if (msgBtn) msgBtn.style.display = 'none';
         const notifContainer = el('notif-container');
@@ -5721,7 +5724,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             if (window.API_BASE && window.AlsatAPI) {
                 try { await window.AlsatAPI.resetAll(); } catch (err) { console.warn('API reset:', err); }
             }
-            const adminEmail = (ADMIN_EMAIL || 'bayarburak87@gmail.com').toLowerCase();
+            const adminEmail = (ADMIN_EMAIL || 'info@alsatmk.com').toLowerCase();
             if (!window.usersDatabase) loadUsersDatabase();
             const db = window.usersDatabase || {};
             const admin = Object.values(db).find(u => (u.email || '').toLowerCase() === adminEmail);

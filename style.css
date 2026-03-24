@@ -943,6 +943,9 @@ body.light-theme select, body.light-theme textarea {
 
 .header-btn.logged-in {
     background: rgba(243,131,50,0.2); border: 1px solid #f38332;
+}
+.admin-header-btn {
+    background: rgba(255,193,7,0.25); border: 1px solid #ffc107; color: #ffc107;
     padding: 8px 14px; border-radius: 20px; display: flex; align-items: center; gap: 8px;
 }
 
