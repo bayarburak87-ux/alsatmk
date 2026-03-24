@@ -5257,25 +5257,26 @@ el('login-formu')?.addEventListener('submit', async function(e) {
 
 el('signup-formu')?.addEventListener('submit', async function(e) {
     e.preventDefault();
+    var tr = typeof window.t === 'function' ? window.t : function(k){ return k; };
     const name = (el('signup-name')?.value || '').trim();
     const email = (el('signup-email')?.value || '').trim().toLowerCase();
     const phone = (el('signup-phone')?.value || '').trim();
     const password = (el('signup-password')?.value || '').trim();
     const confirm = (el('signup-confirm')?.value || '').trim();
-    if (!email || !name) { showToast(t('loginRequired') || 'E-posta ve ad gerekli', 'warning', 2000); return; }
-    if (!phone || phone.replace(/\D/g, '').length < 9) { showToast(t('signupPhoneRequired') || 'Geçerli telefon numarası girin', 'warning', 2000); return; }
-    if (password.length < 6) { showToast(t('passwordMin6') || 'Şifre en az 6 karakter olmalı', 'warning', 2000); return; }
-    if (password !== confirm) { showToast(t('passwordsMustMatch') || 'Şifreler eşleşmiyor', 'warning', 2000); return; }
-    var base = window.API_BASE || (location.protocol + '//' + location.host);
+    if (!email || !name) { showToast(tr('loginRequired') || 'E-posta ve ad gerekli', 'warning', 2000); return; }
+    if (!phone || phone.replace(/\D/g, '').length < 9) { showToast(tr('signupPhoneRequired') || 'Geçerli telefon numarası girin', 'warning', 2000); return; }
+    if (password.length < 6) { showToast(tr('passwordMin6') || 'Şifre en az 6 karakter olmalı', 'warning', 2000); return; }
+    if (password !== confirm) { showToast(tr('passwordsMustMatch') || 'Şifreler eşleşmiyor', 'warning', 2000); return; }
+    var base = window.ALSAT_API_URL || window.API_BASE || (location.hostname && location.hostname.indexOf('alsatmk') >= 0 ? 'https://alsatmk-production.up.railway.app' : null) || (location.protocol + '//' + location.host);
     if (base) {
         var codeStep = el('signup-code-step');
         var codeInput = el('signup-verify-code');
         if (!codeStep || codeStep.style.display === 'none') {
-            showToast(t('sendCodeFirst') || 'Önce "Doğrulama Kodu Gönder" butonuna tıklayın', 'warning', 3000);
+            showToast(tr('sendCodeFirst') || 'Önce "Doğrulama Kodu Gönder" butonuna tıklayın', 'warning', 3000);
             return;
         }
         var code = (codeInput?.value || '').trim();
-        if (!code || code.length !== 6) { showToast(t('enterValidCode') || 'Geçerli 6 haneli kodu girin', 'warning', 2000); return; }
+        if (!code || code.length !== 6) { showToast(tr('enterValidCode') || 'Geçerli 6 haneli kodu girin', 'warning', 2000); return; }
         try {
             var r;
             if (window.AlsatAPI && window.AlsatAPI.verifyRegister) {
@@ -5298,7 +5299,7 @@ el('signup-formu')?.addEventListener('submit', async function(e) {
                 this.reset();
             }
         } catch (err) {
-            showToast(err?.error || err?.message || t('signupFailed') || 'Kayıt başarısız', 'error', 3000);
+            showToast(err?.error || err?.message || tr('signupFailed') || 'Kayıt başarısız', 'error', 3000);
         }
         return;
     }
@@ -5360,7 +5361,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             var tr = typeof window.t === 'function' ? window.t : function(k){ return k; };
             var email = ((document.getElementById('forgot-email')||{}).value || '').trim();
             if (!email) { (window.showToast||function(){})(tr('invalidAmount') || 'Geçerli e-posta girin', 'warning', 2000); return; }
-            var base = window.API_BASE || window.ALSAT_API_URL || (location.protocol + '//' + location.host);
+            var base = window.ALSAT_API_URL || window.API_BASE || (location.hostname && location.hostname.indexOf('alsatmk') >= 0 ? 'https://alsatmk-production.up.railway.app' : null) || (location.protocol + '//' + location.host);
             if (!base) { (window.showToast||function(){})(tr('codeSendFailed') || 'Bağlantı kurulamadı', 'error', 3000); return; }
             if (btn.disabled) return;
             btn.disabled = true;
@@ -5378,7 +5379,7 @@ document.addEventListener('DOMContentLoaded', async function() {
             var tr = typeof window.t === 'function' ? window.t : function(k){ return k; };
             var email = ((document.getElementById('signup-email')||{}).value || '').trim().toLowerCase();
             if (!email) { (window.showToast||function(){})(tr('loginRequired') || 'E-posta gerekli', 'warning', 2000); return; }
-            var base = window.API_BASE || window.ALSAT_API_URL || (location.protocol + '//' + location.host);
+            var base = window.ALSAT_API_URL || window.API_BASE || (location.hostname && location.hostname.indexOf('alsatmk') >= 0 ? 'https://alsatmk-production.up.railway.app' : null) || (location.protocol + '//' + location.host);
             if (!base) { (window.showToast||function(){})(tr('codeSendFailed') || 'Bağlantı kurulamadı', 'error', 3000); return; }
             if (btn.disabled) return;
             btn.disabled = true;
