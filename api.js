@@ -1,9 +1,11 @@
 /**
  * Alsat API İstemcisi - www.alsatmk.com production
- * API her zaman mevcut host üzerinden (location.origin)
+ * Backend Vercel'de değilse: index.html'de window.ALSAT_API_URL ayarlayın (örn. Railway URL)
  */
 (function() {
-  if (typeof location !== 'undefined') {
+  if (window.ALSAT_API_URL) {
+    window.API_BASE = window.ALSAT_API_URL.replace(/\/$/, '');
+  } else if (typeof location !== 'undefined') {
     var h = (location.hostname || '');
     window.API_BASE = (h === 'localhost' || h === '127.0.0.1')
       ? 'http://localhost:3001'

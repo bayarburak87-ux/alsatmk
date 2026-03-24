@@ -1,5 +1,5 @@
 // Alsat PWA Service Worker
-const CACHE = 'alsat-v3';
+const CACHE = 'alsat-v4';
 
 self.addEventListener('install', (e) => {
   e.waitUntil(

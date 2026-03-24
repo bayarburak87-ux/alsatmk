@@ -157,14 +157,54 @@ Site **https://www.alsatmk.com** adresinde çalışır.
 
 ---
 
-## Güncelleme
+## Güncelleme (Yeni Kod Yükleme)
+
+Kodda değişiklik yaptıktan sonra sunucuyu güncellemek için:
+
+### Yöntem 1 – Git kullanıyorsanız
 
 ```bash
+ssh root@SUNUCU_IP
 cd /var/www/alsat
 git pull
-cd backend && npm install
+cd backend
+npm install
 pm2 restart alsat
 ```
+
+### Yöntem 2 – FTP/SFTP ile manuel yükleme
+
+1. **FileZilla, WinSCP veya cPanel File Manager** ile sunucuya bağlanın.
+2. **Yüklemeniz gereken dosyalar:**
+   - `script.js` → proje ana klasörüne (index.html ile aynı yere)
+   - `api.js` → proje ana klasörüne
+   - `index.html` → proje ana klasörüne
+   - `backend/mail.js` → `backend` klasörüne
+   - `backend/server.js` → `backend` klasörüne (değişiklik yaptıysanız)
+3. **Backend yeniden başlatma** – SSH ile sunucuya girip:
+   ```bash
+   cd /var/www/alsat/backend
+   pm2 restart alsat
+   ```
+   PM2 yoksa:
+   ```bash
+   # Çalışan node sürecini durdurun (Ctrl+C) ve tekrar başlatın:
+   node server.js
+   ```
+
+### Yöntem 3 – cPanel kullanıyorsanız
+
+1. **Dosya Yöneticisi** ile `public_html` veya site kök klasörüne gidin.
+2. `script.js`, `api.js`, `index.html` dosyalarını seçip **Yükle** ile güncel sürümleri yükleyin (üzerine yazın).
+3. `backend` klasörü varsa içindeki `mail.js` ve `server.js` dosyalarını da güncelleyin.
+4. cPanel’de **Node.js Uygulaması** varsa **Restart** ile uygulamayı yeniden başlatın.
+
+### Tarayıcı önbelleğini temizleme
+
+Güncellemeden sonra eski dosyalar görünüyorsa:
+
+- **Chrome/Edge:** `Ctrl + Shift + R` veya `Ctrl + F5`
+- **Gizli pencere** ile test edin: `Ctrl + Shift + N`
 
 ---
 
