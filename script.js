@@ -5253,28 +5253,7 @@ el('login-formu')?.addEventListener('submit', async function(e) {
     this.reset();
 });
 
-el('signup-send-code-btn')?.addEventListener('click', async function() {
-    const email = (el('signup-email')?.value || '').trim().toLowerCase();
-    if (!email) { showToast(t('loginRequired') || 'E-posta gerekli', 'warning', 2000); return; }
-    var base = window.API_BASE || (location.protocol + '//' + location.host);
-    if (!base) { showToast(t('codeSendFailed') || 'Bağlantı kurulamadı', 'error', 3000); return; }
-    try {
-        if (window.AlsatAPI && window.AlsatAPI.sendCode) {
-            await window.AlsatAPI.sendCode('register', email);
-        } else {
-            var r = await fetch(base + '/api/auth/send-code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'register', email: email }) });
-            var d = await r.json().catch(function(){ return {}; });
-            if (!r.ok) throw new Error(d.error || r.statusText || 'Kod gönderilemedi');
-        }
-        var codeStep = el('signup-code-step');
-        var btn = el('signup-send-code-btn');
-        if (codeStep) { codeStep.style.display = 'block'; el('signup-verify-code')?.focus(); }
-        if (btn) { btn.disabled = true; var txt = btn.querySelector('#signup-send-code-txt'); if (txt) txt.textContent = t('codeSent') || 'Kod gönderildi'; }
-        showToast(t('codeSent') || 'Doğrulama kodu e-postanıza gönderildi', 'success', 3000);
-    } catch (err) {
-        showToast(err?.error || err?.message || t('codeSendFailed') || 'Kod gönderilemedi', 'error', 3000);
-    }
-});
+// signup-send-code-btn: criticalClick içinde event delegation ile işleniyor
 
 el('signup-formu')?.addEventListener('submit', async function(e) {
     e.preventDefault();
@@ -5342,7 +5321,7 @@ el('switch-signup')?.addEventListener('click', function(e) {
     if (codeStep) codeStep.style.display = 'none';
     const sendBtn = el('signup-send-code-btn');
     if (sendBtn) { sendBtn.disabled = false; var txtEl = sendBtn.querySelector('#signup-send-code-txt'); if (txtEl) txtEl.textContent = (typeof window.t === 'function' ? window.t('sendCodeBtn') : 'Doğrulama Kodu Gönder'); }
-    if (sendBtn && (window.API_BASE || (location.protocol && location.host))) sendBtn.style.display = '';
+    if (sendBtn && (window.API_BASE || window.ALSAT_API_URL || (location.protocol && location.host))) sendBtn.style.display = '';
 });
 
 el('switch-login')?.addEventListener('click', function(e) {
@@ -5375,6 +5354,42 @@ document.addEventListener('DOMContentLoaded', async function() {
     // TÜM KRİTİK TIKLAMALAR - Document delegation (hiçbir init hatası engellemesin)
     document.addEventListener('click', function criticalClick(e) {
         var t = e.target;
+        if (t.closest && t.closest('#forgot-send-btn')) {
+            e.preventDefault(); e.stopPropagation();
+            var btn = t.closest('#forgot-send-btn');
+            var tr = typeof window.t === 'function' ? window.t : function(k){ return k; };
+            var email = ((document.getElementById('forgot-email')||{}).value || '').trim();
+            if (!email) { (window.showToast||function(){})(tr('invalidAmount') || 'Geçerli e-posta girin', 'warning', 2000); return; }
+            var base = window.API_BASE || window.ALSAT_API_URL || (location.protocol + '//' + location.host);
+            if (!base) { (window.showToast||function(){})(tr('codeSendFailed') || 'Bağlantı kurulamadı', 'error', 3000); return; }
+            if (btn.disabled) return;
+            btn.disabled = true;
+            fetch(base + '/api/auth/send-code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'forgot', email: email }) })
+                .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, data: d }; }).catch(function(){ return { ok: r.ok, data: {} }; }); })
+                .then(function(res){ if (!res.ok) throw new Error(res.data.error || 'Kod gönderilemedi'); return res; })
+                .then(function(){ var s1 = document.getElementById('forgot-step1'); var s2 = document.getElementById('forgot-step2'); if (s1) s1.style.display = 'none'; if (s2) s2.style.display = 'block'; document.getElementById('forgot-code')?.focus(); (window.showToast||function(){})(tr('codeSent') || 'Doğrulama kodu e-postanıza gönderildi', 'success', 3000); })
+                .catch(function(err){ (window.showToast||function(){})(err && (err.error || err.message) || tr('codeSendFailed') || 'Kod gönderilemedi', 'error', 3000); })
+                .finally(function(){ btn.disabled = false; });
+            return;
+        }
+        if (t.closest && t.closest('#signup-send-code-btn')) {
+            e.preventDefault(); e.stopPropagation();
+            var btn = t.closest('#signup-send-code-btn');
+            var tr = typeof window.t === 'function' ? window.t : function(k){ return k; };
+            var email = ((document.getElementById('signup-email')||{}).value || '').trim().toLowerCase();
+            if (!email) { (window.showToast||function(){})(tr('loginRequired') || 'E-posta gerekli', 'warning', 2000); return; }
+            var base = window.API_BASE || window.ALSAT_API_URL || (location.protocol + '//' + location.host);
+            if (!base) { (window.showToast||function(){})(tr('codeSendFailed') || 'Bağlantı kurulamadı', 'error', 3000); return; }
+            if (btn.disabled) return;
+            btn.disabled = true;
+            fetch(base + '/api/auth/send-code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'register', email: email }) })
+                .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, data: d }; }).catch(function(){ return { ok: r.ok, data: {} }; }); })
+                .then(function(res){ if (!res.ok) throw new Error(res.data.error || 'Kod gönderilemedi'); return res; })
+                .then(function(){ var codeStep = document.getElementById('signup-code-step'); if (codeStep) { codeStep.style.display = 'block'; document.getElementById('signup-verify-code')?.focus(); } var txt = btn.querySelector('#signup-send-code-txt'); if (txt) txt.textContent = tr('codeSent') || 'Kod gönderildi'; (window.showToast||function(){})(tr('codeSent') || 'Doğrulama kodu e-postanıza gönderildi', 'success', 3000); })
+                .catch(function(err){ (window.showToast||function(){})(err && (err.error || err.message) || tr('codeSendFailed') || 'Kod gönderilemedi', 'error', 3000); var txt = btn.querySelector('#signup-send-code-txt'); if (txt) txt.textContent = tr('sendCodeBtn') || 'Doğrulama Kodu Gönder'; })
+                .finally(function(){ btn.disabled = false; });
+            return;
+        }
         if (t.closest && t.closest('#open-terms-link')) { e.preventDefault(); e.stopPropagation(); (window.openTermsModal||function(){})(); return; }
         if (t.closest && t.closest('#logo-home')) { e.preventDefault(); if (window.showHomepage) showHomepage(); return; }
         if (t.closest && t.closest('.back-btn')) {
@@ -5582,7 +5597,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     })();
 
     var sendCodeBtn = el('signup-send-code-btn');
-    if (sendCodeBtn && (window.API_BASE || (location.protocol && location.host))) sendCodeBtn.style.display = '';
+    if (sendCodeBtn && (window.API_BASE || window.ALSAT_API_URL || (location.protocol && location.host))) sendCodeBtn.style.display = '';
 
     if (window.API_BASE && window.AlsatAPI) {
         try {
@@ -6125,28 +6140,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         var fnp = el('forgot-new-password'); if (fnp) fnp.value = '';
         var fcp = el('forgot-confirm-password'); if (fcp) fcp.value = '';
     });
-    el('forgot-send-btn')?.addEventListener('click', async function() {
-        var btn = this;
-        var tr = typeof window.t === 'function' ? window.t : function(k){ return k; };
-        var email = (el('forgot-email')?.value || '').trim();
-        if (!email) { showToast(tr('invalidAmount') || 'Geçerli e-posta girin', 'warning', 2000); return; }
-        var base = window.API_BASE || window.ALSAT_API_URL || (location.protocol + '//' + location.host);
-        if (!base) { showToast(tr('codeSendFailed') || 'Bağlantı kurulamadı.', 'error', 3000); return; }
-        if (btn.disabled) return;
-        btn.disabled = true;
-        try {
-            var r = await fetch(base + '/api/auth/send-code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'forgot', email: email }) });
-            var d = await r.json().catch(function(){ return {}; });
-            if (!r.ok) throw new Error(d.error || r.statusText || 'Kod gönderilemedi');
-            el('forgot-step1').style.display = 'none';
-            el('forgot-step2').style.display = 'block';
-            el('forgot-code')?.focus();
-            showToast(tr('codeSent') || 'Doğrulama kodu e-postanıza gönderildi', 'success', 3000);
-        } catch (err) {
-            showToast(err?.error || err?.message || tr('codeSendFailed') || 'Kod gönderilemedi', 'error', 3000);
-        }
-        btn.disabled = false;
-    });
+    // forgot-send-btn: criticalClick içinde event delegation ile işleniyor
     el('forgot-back-btn')?.addEventListener('click', function() {
         el('forgot-step1').style.display = 'block';
         el('forgot-step2').style.display = 'none';
