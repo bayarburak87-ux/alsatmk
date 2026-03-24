@@ -1878,8 +1878,14 @@
     <script src="car-data.js"></script>
     <script src="stores-data.js"></script>
     <script src="jobs-data.js"></script>
-    <!-- Backend: localhost'ta otomatik, yoksa window.API_BASE = 'http://...' ile ayarlayın -->
-    <script>if(location.hostname==='localhost'||location.hostname==='127.0.0.1')window.API_BASE='http://localhost:3001';</script>
+    <!-- API: www.alsatmk.com veya mevcut site adresi (localhost sadece geliştirme) -->
+    <script>
+    (function(){
+        var h=location.hostname;
+        if(h==='localhost'||h==='127.0.0.1') window.API_BASE='http://localhost:3001';
+        else window.API_BASE=location.protocol+'//'+location.host;
+    })();
+    </script>
     <script src="api.js"></script>
     <script src="script.js"></script>
     <script>

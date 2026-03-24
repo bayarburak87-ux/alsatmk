@@ -599,14 +599,22 @@ function getOrCreateUser(id, email, name, phone) {
     return u;
 }
 
-// Admin panel - backend'den gelen isAdmin veya e-posta kontrolü
+// Admin panel - info@alsatmk.com (veya ?admin=1 ile giriş yapmış herkes)
 var ADMIN_EMAIL = 'info@alsatmk.com';
 function isAdmin() {
     const u = getCurrentUser();
     if (!u) return false;
     if (u.isAdmin === true) return true;
-    const adminEm = (window.ADMIN_EMAIL || ADMIN_EMAIL || 'info@alsatmk.com').toLowerCase().trim();
-    return (u.email || '').toLowerCase().trim() === adminEm;
+    if (localStorage.getItem('alsat_admin_ok') === '1') return true;
+    var em = (u.email || '').toLowerCase().trim();
+    if (!em && u.id && window.usersDatabase) {
+        const udb = window.usersDatabase[u.id];
+        if (udb && udb.email) em = (udb.email || '').toLowerCase().trim();
+    }
+    if (!em) return false;
+    if (em.indexOf('info@alsatmk.com') >= 0) return true;
+    var adminEm = (window.ADMIN_EMAIL || ADMIN_EMAIL || 'info@alsatmk.com').toLowerCase().trim();
+    return em === adminEm;
 }
 
 // Alsat Store - sadece admin görebilir; kullanıcılar sadece 2. el ilanlara odaklanır
@@ -5661,6 +5669,15 @@ document.addEventListener('DOMContentLoaded', async function() {
     const hash = location.hash;
     const m = hash && hash.match(/^#ad=(\d+)/);
     if (m) { showListingPage(); setTimeout(() => window.ilanDetayAc(parseInt(m[1])), 300); }
+    if (hash === '#admin' && typeof openAdminPage === 'function') {
+        setTimeout(function() { if (isAdmin()) openAdminPage(); else showToast('Yetkiniz yok', 'warning', 2000); }, 100);
+    }
+    if (location.search.indexOf('admin=1') >= 0 && getCurrentUser()) {
+        localStorage.setItem('alsat_admin_ok', '1');
+        if (typeof updateHeaderUI === 'function') updateHeaderUI();
+        if (typeof openAdminPage === 'function') setTimeout(openAdminPage, 100);
+    }
+    window.addEventListener('hashchange', function() { if (location.hash === '#admin' && isAdmin()) openAdminPage(); });
 
     // Profile button - open dropdown
     el('profile-button')?.addEventListener('click', function(e) {

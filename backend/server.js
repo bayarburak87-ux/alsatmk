@@ -72,6 +72,9 @@ function getOnlineUsers() {
   return out.sort((a, b) => b.lastActivity - a.lastActivity);
 }
 
+// Nginx vb. arkasında çalışırken doğru IP/protocol için
+app.set('trust proxy', 1);
+
 // Middleware
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors({
@@ -1018,8 +1021,17 @@ async function seedAdminIfEmpty() {
 }
 
 if (require.main === module) {
-  const server = app.listen(config.port, async () => {
+  const server = app.listen(config.port, '0.0.0.0', async () => {
+    const { networkInterfaces } = require('os');
+    const nets = networkInterfaces();
+    let ips = [];
+    for (const n of Object.values(nets)) {
+      for (const i of n || []) {
+        if (i.family === 'IPv4' && !i.internal) ips.push(i.address);
+      }
+    }
     logger.info(`Alsat: http://localhost:${config.port} (Site + API) | DB: ${driver}`);
+    if (ips.length) logger.info(`Diğer cihazlardan: http://${ips[0]}:${config.port}`);
     await seedAdminIfEmpty();
   });
 }
