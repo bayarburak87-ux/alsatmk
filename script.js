@@ -5255,17 +5255,23 @@ el('login-formu')?.addEventListener('submit', async function(e) {
 el('signup-send-code-btn')?.addEventListener('click', async function() {
     const email = (el('signup-email')?.value || '').trim().toLowerCase();
     if (!email) { showToast(t('loginRequired') || 'E-posta gerekli', 'warning', 2000); return; }
-    if (window.API_BASE && window.AlsatAPI) {
-        try {
+    var base = window.API_BASE || (location.protocol + '//' + location.host);
+    if (!base) { showToast(t('codeSendFailed') || 'Bağlantı kurulamadı', 'error', 3000); return; }
+    try {
+        if (window.AlsatAPI && window.AlsatAPI.sendCode) {
             await window.AlsatAPI.sendCode('register', email);
-            const codeStep = el('signup-code-step');
-            const btn = el('signup-send-code-btn');
-            if (codeStep) { codeStep.style.display = 'block'; el('signup-verify-code')?.focus(); }
-            if (btn) { btn.disabled = true; btn.querySelector('#signup-send-code-txt').textContent = t('codeSent') || 'Kod gönderildi'; }
-            showToast(t('codeSent') || 'Doğrulama kodu e-postanıza gönderildi', 'success', 3000);
-        } catch (err) {
-            showToast(err?.error || err?.message || t('codeSendFailed'), 'error', 3000);
+        } else {
+            var r = await fetch(base + '/api/auth/send-code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'register', email: email }) });
+            var d = await r.json().catch(function(){ return {}; });
+            if (!r.ok) throw new Error(d.error || r.statusText || 'Kod gönderilemedi');
         }
+        var codeStep = el('signup-code-step');
+        var btn = el('signup-send-code-btn');
+        if (codeStep) { codeStep.style.display = 'block'; el('signup-verify-code')?.focus(); }
+        if (btn) { btn.disabled = true; var txt = btn.querySelector('#signup-send-code-txt'); if (txt) txt.textContent = t('codeSent') || 'Kod gönderildi'; }
+        showToast(t('codeSent') || 'Doğrulama kodu e-postanıza gönderildi', 'success', 3000);
+    } catch (err) {
+        showToast(err?.error || err?.message || t('codeSendFailed') || 'Kod gönderilemedi', 'error', 3000);
     }
 });
 
@@ -5280,17 +5286,25 @@ el('signup-formu')?.addEventListener('submit', async function(e) {
     if (!phone || phone.replace(/\D/g, '').length < 9) { showToast(t('signupPhoneRequired') || 'Geçerli telefon numarası girin', 'warning', 2000); return; }
     if (password.length < 6) { showToast(t('passwordMin6') || 'Şifre en az 6 karakter olmalı', 'warning', 2000); return; }
     if (password !== confirm) { showToast(t('passwordsMustMatch') || 'Şifreler eşleşmiyor', 'warning', 2000); return; }
-    if (window.API_BASE && window.AlsatAPI) {
-        const codeStep = el('signup-code-step');
-        const codeInput = el('signup-verify-code');
+    var base = window.API_BASE || (location.protocol + '//' + location.host);
+    if (base) {
+        var codeStep = el('signup-code-step');
+        var codeInput = el('signup-verify-code');
         if (!codeStep || codeStep.style.display === 'none') {
             showToast(t('sendCodeFirst') || 'Önce "Doğrulama Kodu Gönder" butonuna tıklayın', 'warning', 3000);
             return;
         }
-        const code = (codeInput?.value || '').trim();
+        var code = (codeInput?.value || '').trim();
         if (!code || code.length !== 6) { showToast(t('enterValidCode') || 'Geçerli 6 haneli kodu girin', 'warning', 2000); return; }
         try {
-            const r = await window.AlsatAPI.verifyRegister(email, code, name, password, phone);
+            var r;
+            if (window.AlsatAPI && window.AlsatAPI.verifyRegister) {
+                r = await window.AlsatAPI.verifyRegister(email, code, name, password, phone);
+            } else {
+                var resp = await fetch(base + '/api/auth/verify-register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email, code: code, name: name, password: password, phone: phone }) });
+                r = await resp.json().catch(function(){ return {}; });
+                if (!resp.ok) throw new Error(r.error || resp.statusText || 'Kayıt başarısız');
+            }
             if (r && r.id) {
                 getOrCreateUser(r.id, email, name, phone);
                 setCurrentUser({ id: r.id, email, name, phone });
@@ -5298,17 +5312,17 @@ el('signup-formu')?.addEventListener('submit', async function(e) {
                 closeSignupModal();
                 if (codeStep) codeStep.style.display = 'none';
                 if (codeInput) codeInput.value = '';
-                const btn = el('signup-send-code-btn');
-                if (btn) { btn.disabled = false; btn.querySelector('#signup-send-code-txt').textContent = t('sendCodeBtn') || 'Doğrulama Kodu Gönder'; }
+                var btn = el('signup-send-code-btn');
+                if (btn) { btn.disabled = false; var t = btn.querySelector('#signup-send-code-txt'); if (t) t.textContent = t('sendCodeBtn') || 'Doğrulama Kodu Gönder'; }
                 showToast('signupSuccess', 'success', 2000);
                 this.reset();
             }
         } catch (err) {
-            showToast(err?.error || err?.message || t('signupFailed'), 'error', 3000);
+            showToast(err?.error || err?.message || t('signupFailed') || 'Kayıt başarısız', 'error', 3000);
         }
         return;
     }
-    const user = { id: Date.now(), email, name, phone };
+    var user = { id: Date.now(), email, name, phone };
     getOrCreateUser(user.id, user.email, user.name, user.phone);
     if (window.usersDatabase && window.usersDatabase[String(user.id)]) window.usersDatabase[String(user.id)].password = password;
     setCurrentUser(user);
@@ -5327,7 +5341,7 @@ el('switch-signup')?.addEventListener('click', function(e) {
     if (codeStep) codeStep.style.display = 'none';
     const sendBtn = el('signup-send-code-btn');
     if (sendBtn) { sendBtn.disabled = false; const t = sendBtn.querySelector('#signup-send-code-txt'); if (t) t.textContent = t('sendCodeBtn') || 'Doğrulama Kodu Gönder'; }
-    if (window.API_BASE && sendBtn) sendBtn.style.display = '';
+    if (sendBtn && (window.API_BASE || (location.protocol && location.host))) sendBtn.style.display = '';
 });
 
 el('switch-login')?.addEventListener('click', function(e) {
@@ -5566,8 +5580,8 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
     })();
 
-    const sendCodeBtn = el('signup-send-code-btn');
-    if (window.API_BASE && sendCodeBtn) sendCodeBtn.style.display = '';
+    var sendCodeBtn = el('signup-send-code-btn');
+    if (sendCodeBtn && (window.API_BASE || (location.protocol && location.host))) sendCodeBtn.style.display = '';
 
     if (window.API_BASE && window.AlsatAPI) {
         try {
@@ -6113,19 +6127,23 @@ document.addEventListener('DOMContentLoaded', async function() {
     el('forgot-send-btn')?.addEventListener('click', async function() {
         const email = (el('forgot-email')?.value || '').trim();
         if (!email) { showToast(t('invalidAmount') || 'Geçerli e-posta girin', 'warning', 2000); return; }
-        if (window.API_BASE && window.AlsatAPI) {
-            try {
+        var base = window.API_BASE || (location.protocol + '//' + location.host);
+        if (!base) { showToast(t('codeSendFailed') || 'Bağlantı kurulamadı. Sayfayı yenileyin.', 'error', 3000); return; }
+        try {
+            if (window.AlsatAPI && window.AlsatAPI.sendCode) {
                 await window.AlsatAPI.sendCode('forgot', email);
-                el('forgot-step1').style.display = 'none';
-                el('forgot-step2').style.display = 'block';
-                el('forgot-code')?.focus();
-                showToast(t('codeSent') || 'Doğrulama kodu e-postanıza gönderildi', 'success', 3000);
-            } catch (err) {
-                showToast(err?.error || err?.message || t('codeSendFailed'), 'error', 3000);
+            } else {
+                var r = await fetch(base + '/api/auth/send-code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'forgot', email: email }) });
+                var d = await r.json().catch(function(){ return {}; });
+                if (!r.ok) throw new Error(d.error || r.statusText || 'Kod gönderilemedi');
             }
-            return;
+            el('forgot-step1').style.display = 'none';
+            el('forgot-step2').style.display = 'block';
+            el('forgot-code')?.focus();
+            showToast(t('codeSent') || 'Doğrulama kodu e-postanıza gönderildi', 'success', 3000);
+        } catch (err) {
+            showToast(err?.error || err?.message || t('codeSendFailed') || 'Kod gönderilemedi', 'error', 3000);
         }
-        showToast(t('passwordResetContact'), 'info', 4000);
     });
     el('forgot-back-btn')?.addEventListener('click', function() {
         el('forgot-step1').style.display = 'block';
@@ -6139,15 +6157,21 @@ document.addEventListener('DOMContentLoaded', async function() {
         if (!email || !code) { showToast(t('enterValidCode') || 'Kod girin', 'warning', 2000); return; }
         if (newPwd.length < 6) { showToast(t('passwordMin6') || 'Şifre en az 6 karakter olmalı', 'warning', 2000); return; }
         if (newPwd !== confirmPwd) { showToast(t('passwordsMustMatch') || 'Şifreler eşleşmiyor', 'warning', 2000); return; }
-        if (window.API_BASE && window.AlsatAPI) {
-            try {
+        var base = window.API_BASE || (location.protocol + '//' + location.host);
+        if (!base) { showToast(t('passwordResetFailed') || 'Bağlantı kurulamadı. Sayfayı yenileyin.', 'error', 3000); return; }
+        try {
+            if (window.AlsatAPI && window.AlsatAPI.verifyForgot) {
                 await window.AlsatAPI.verifyForgot(email, code, newPwd);
-                window.closeForgotModal();
-                window.openLoginModal?.();
-                showToast(t('passwordResetSuccess') || 'Şifreniz güncellendi. Giriş yapabilirsiniz.', 'success', 3000);
-            } catch (err) {
-                showToast(err?.error || err?.message || t('passwordResetFailed'), 'error', 3000);
+            } else {
+                var r = await fetch(base + '/api/auth/verify-forgot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: email, code: code, newPassword: newPwd }) });
+                var d = await r.json().catch(function(){ return {}; });
+                if (!r.ok) throw new Error(d.error || r.statusText || 'Şifre sıfırlanamadı');
             }
+            window.closeForgotModal();
+            window.openLoginModal?.();
+            showToast(t('passwordResetSuccess') || 'Şifreniz güncellendi. Giriş yapabilirsiniz.', 'success', 3000);
+        } catch (err) {
+            showToast(err?.error || err?.message || t('passwordResetFailed') || 'Şifre sıfırlanamadı', 'error', 3000);
         }
     });
     qsa('#forgot-modal .toggle-password').forEach(btn => {
@@ -6410,16 +6434,21 @@ document.addEventListener('DOMContentLoaded', async function() {
         if (!oldPwd) { showToast(t('enterPassword') || 'Mevcut şifrenizi girin', 'warning', 2000); return; }
         if (!newPwd || newPwd.length < 6) { showToast(t('passwordMin6') || 'Yeni şifre en az 6 karakter olmalı', 'warning', 2000); return; }
         if (newPwd !== confirmPwd) { showToast(t('passwordsMustMatch') || 'Şifreler eşleşmiyor', 'warning', 2000); return; }
-        if (window.API_BASE && window.AlsatAPI?.changePassword) {
-            try {
+        var base = window.API_BASE || (location.protocol + '//' + location.host);
+        if (!base) { showToast('Bağlantı kurulamadı. Sayfayı yenileyin.', 'error', 2500); return; }
+        try {
+            if (window.AlsatAPI && window.AlsatAPI.changePassword) {
                 await window.AlsatAPI.changePassword(oldPwd, newPwd);
-                el('old-password').value = el('new-password').value = el('confirm-new-password').value = '';
-                showToast(t('passwordChanged') || 'Şifre başarıyla değiştirildi', 'success', 2500);
-            } catch (err) {
-                showToast(err?.error || err?.message || 'Şifre değiştirilemedi', 'error', 2500);
+            } else {
+                var tok = localStorage.getItem('alsat_token');
+                var r = await fetch(base + '/api/auth/change-password', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': (tok ? 'Bearer ' + tok : '') }, body: JSON.stringify({ currentPassword: oldPwd, newPassword: newPwd }) });
+                var d = await r.json().catch(function(){ return {}; });
+                if (!r.ok) throw new Error(d.error || r.statusText || 'Şifre değiştirilemedi');
             }
-        } else {
-            showToast(t('passwordResetContact') || 'Şifre değişikliği için destek ile iletişime geçin', 'info', 3000);
+            el('old-password').value = el('new-password').value = el('confirm-new-password').value = '';
+            showToast(t('passwordChanged') || 'Şifre başarıyla değiştirildi', 'success', 2500);
+        } catch (err) {
+            showToast(err?.error || err?.message || 'Şifre değiştirilemedi', 'error', 2500);
         }
     });
 

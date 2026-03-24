@@ -1,10 +1,9 @@
 /**
- * Alsat API İstemcisi
- * Token desteği: Login/verify sonrası token saklanır, tüm auth gerektiren isteklerde gönderilir
- * Backend: window.API_BASE = 'http://localhost:3001';
+ * Alsat API İstemcisi - www.alsatmk.com production
+ * API her zaman mevcut host üzerinden (location.origin)
  */
 (function() {
-  if (!window.API_BASE && typeof location !== 'undefined') {
+  if (typeof location !== 'undefined') {
     var h = (location.hostname || '');
     window.API_BASE = (h === 'localhost' || h === '127.0.0.1')
       ? 'http://localhost:3001'
