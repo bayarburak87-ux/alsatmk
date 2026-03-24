@@ -6126,25 +6126,26 @@ document.addEventListener('DOMContentLoaded', async function() {
         var fcp = el('forgot-confirm-password'); if (fcp) fcp.value = '';
     });
     el('forgot-send-btn')?.addEventListener('click', async function() {
-        const email = (el('forgot-email')?.value || '').trim();
-        if (!email) { showToast(t('invalidAmount') || 'Geçerli e-posta girin', 'warning', 2000); return; }
-        var base = window.API_BASE || (location.protocol + '//' + location.host);
-        if (!base) { showToast(t('codeSendFailed') || 'Bağlantı kurulamadı. Sayfayı yenileyin.', 'error', 3000); return; }
+        var btn = this;
+        var tr = typeof window.t === 'function' ? window.t : function(k){ return k; };
+        var email = (el('forgot-email')?.value || '').trim();
+        if (!email) { showToast(tr('invalidAmount') || 'Geçerli e-posta girin', 'warning', 2000); return; }
+        var base = window.API_BASE || window.ALSAT_API_URL || (location.protocol + '//' + location.host);
+        if (!base) { showToast(tr('codeSendFailed') || 'Bağlantı kurulamadı.', 'error', 3000); return; }
+        if (btn.disabled) return;
+        btn.disabled = true;
         try {
-            if (window.AlsatAPI && window.AlsatAPI.sendCode) {
-                await window.AlsatAPI.sendCode('forgot', email);
-            } else {
-                var r = await fetch(base + '/api/auth/send-code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'forgot', email: email }) });
-                var d = await r.json().catch(function(){ return {}; });
-                if (!r.ok) throw new Error(d.error || r.statusText || 'Kod gönderilemedi');
-            }
+            var r = await fetch(base + '/api/auth/send-code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'forgot', email: email }) });
+            var d = await r.json().catch(function(){ return {}; });
+            if (!r.ok) throw new Error(d.error || r.statusText || 'Kod gönderilemedi');
             el('forgot-step1').style.display = 'none';
             el('forgot-step2').style.display = 'block';
             el('forgot-code')?.focus();
-            showToast(t('codeSent') || 'Doğrulama kodu e-postanıza gönderildi', 'success', 3000);
+            showToast(tr('codeSent') || 'Doğrulama kodu e-postanıza gönderildi', 'success', 3000);
         } catch (err) {
-            showToast(err?.error || err?.message || t('codeSendFailed') || 'Kod gönderilemedi', 'error', 3000);
+            showToast(err?.error || err?.message || tr('codeSendFailed') || 'Kod gönderilemedi', 'error', 3000);
         }
+        btn.disabled = false;
     });
     el('forgot-back-btn')?.addEventListener('click', function() {
         el('forgot-step1').style.display = 'block';
