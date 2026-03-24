@@ -4,6 +4,12 @@
  * Backend: window.API_BASE = 'http://localhost:3001';
  */
 (function() {
+  if (!window.API_BASE && typeof location !== 'undefined') {
+    var h = (location.hostname || '');
+    window.API_BASE = (h === 'localhost' || h === '127.0.0.1')
+      ? 'http://localhost:3001'
+      : (location.protocol + '//' + location.host);
+  }
   window.API_BASE = window.API_BASE || '';
   const base = () => window.API_BASE;
   const TOKEN_KEY = 'alsat_token';
