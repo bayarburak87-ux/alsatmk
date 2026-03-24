@@ -12,6 +12,39 @@ function t(key, subKey) {
     return tr[key] ?? key;
 }
 window.t = t;
+
+window.handleForgotSendCode = function() {
+    var btn = document.getElementById('forgot-send-btn');
+    var tr = typeof window.t === 'function' ? window.t : function(k){ return k; };
+    var email = ((document.getElementById('forgot-email')||{}).value || '').trim();
+    if (!email) { (window.showToast||function(){})(tr('invalidAmount') || 'Geçerli e-posta girin', 'warning', 2000); return; }
+    var base = window.ALSAT_API_URL || window.API_BASE || (location.hostname && location.hostname.indexOf('alsatmk') >= 0 ? 'https://alsatmk-production.up.railway.app' : null) || (location.protocol + '//' + location.host);
+    if (!base) { (window.showToast||function(){})(tr('codeSendFailed') || 'Bağlantı kurulamadı', 'error', 3000); return; }
+    if (btn && btn.disabled) return;
+    if (btn) btn.disabled = true;
+    fetch(base + '/api/auth/send-code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'forgot', email: email }) })
+        .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, data: d }; }).catch(function(){ return { ok: r.ok, data: {} }; }); })
+        .then(function(res){ if (!res.ok) throw new Error(res.data.error || 'Kod gönderilemedi'); var s1 = document.getElementById('forgot-step1'); var s2 = document.getElementById('forgot-step2'); if (s1) s1.style.display = 'none'; if (s2) s2.style.display = 'block'; try { document.getElementById('forgot-code').focus(); } catch(e) {} (window.showToast||function(){})(tr('codeSent') || 'Doğrulama kodu e-postanıza gönderildi', 'success', 3000); })
+        .catch(function(err){ (window.showToast||function(){})((err && err.message) || tr('codeSendFailed') || 'Kod gönderilemedi', 'error', 3000); })
+        .finally(function(){ if (btn) btn.disabled = false; });
+};
+
+window.handleSignupSendCode = function() {
+    var btn = document.getElementById('signup-send-code-btn');
+    var tr = typeof window.t === 'function' ? window.t : function(k){ return k; };
+    var email = ((document.getElementById('signup-email')||{}).value || '').trim().toLowerCase();
+    if (!email) { (window.showToast||function(){})(tr('loginRequired') || 'E-posta gerekli', 'warning', 2000); return; }
+    var base = window.ALSAT_API_URL || window.API_BASE || (location.hostname && location.hostname.indexOf('alsatmk') >= 0 ? 'https://alsatmk-production.up.railway.app' : null) || (location.protocol + '//' + location.host);
+    if (!base) { (window.showToast||function(){})(tr('codeSendFailed') || 'Bağlantı kurulamadı', 'error', 3000); return; }
+    if (btn && btn.disabled) return;
+    if (btn) btn.disabled = true;
+    fetch(base + '/api/auth/send-code', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: 'register', email: email }) })
+        .then(function(r){ return r.json().then(function(d){ return { ok: r.ok, data: d }; }).catch(function(){ return { ok: r.ok, data: {} }; }); })
+        .then(function(res){ if (!res.ok) throw new Error(res.data.error || 'Kod gönderilemedi'); var codeStep = document.getElementById('signup-code-step'); if (codeStep) { codeStep.style.display = 'block'; var fc = document.getElementById('signup-verify-code'); if (fc) fc.focus(); } var txt = btn && btn.querySelector('#signup-send-code-txt'); if (txt) txt.textContent = tr('codeSent') || 'Kod gönderildi'; (window.showToast||function(){})(tr('codeSent') || 'Doğrulama kodu e-postanıza gönderildi', 'success', 3000); })
+        .catch(function(err){ (window.showToast||function(){})((err && err.message) || tr('codeSendFailed') || 'Kod gönderilemedi', 'error', 3000); var txt = btn && btn.querySelector('#signup-send-code-txt'); if (txt) txt.textContent = tr('sendCodeBtn') || 'Doğrulama Kodu Gönder'; })
+        .finally(function(){ if (btn) btn.disabled = false; });
+};
+
 function tCity(cityKey) {
     if (!cityKey) return '';
     const tr = window.TRANSLATIONS?.[window.currentLang]?.cities;
