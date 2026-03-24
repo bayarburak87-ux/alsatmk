@@ -1,0 +1,6 @@
+# Railway build - npm install (npm ci yerine)
+[phases.install]
+cmds = ["npm install"]
+
+[start]
+cmd = "npm start"
