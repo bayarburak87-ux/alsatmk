@@ -67,6 +67,7 @@ function updateLanguage(lang) {
     set('mobile-txt-fav', 'textContent', L.myFavorites || 'Favoriler');
     set('mobile-txt-msg', 'textContent', L.messages || 'Mesajlar');
     set('mobile-txt-notif', 'textContent', L.notifications || 'Bildirimler');
+    set('mobile-push-txt', 'textContent', (L.enableNotifications || 'Bildirimlere İzin Ver'));
     set('mobile-txt-admin', 'textContent', L.adminPanel || 'Admin Panel');
     set('mobile-menu-title', 'textContent', L.menu || 'Menü');
     set('fav-dropdown-title', 'textContent', L.myFavorites || 'Favoriler');
@@ -282,6 +283,7 @@ function updateLanguage(lang) {
     if (adsH1) adsH1.textContent = L.myAds;
     set('new-ad-from-profile', 'innerHTML', '<i class="fa-solid fa-plus"></i> ' + L.newAd);
     set('no-ads', 'textContent', L.noAds);
+    set('txt-taslak-kaydet', 'textContent', L.saveDraft || 'Taslak Kaydet');
     const msgTitle = document.querySelector('#messaging-modal .modal-title');
     if (msgTitle) msgTitle.innerHTML = '<i class="fa-solid fa-comments"></i> ' + L.messages;
     set('msg-search', 'placeholder', L.searchConversation);
@@ -778,8 +780,8 @@ function initCurrencyWidget() {
         amtEl.addEventListener('focus', function() { dd.classList.add('open'); });
     }
 }
-window.openSupportModal = function() { el('support-modal').style.display = 'flex'; el('support-modal')?.classList.add('active'); };
-window.closeSupportModal = function() { el('support-modal').style.display = 'none'; el('support-modal')?.classList.remove('active'); };
+window.openSupportModal = function() { var m = el('support-modal'); if (m) { m.style.display = 'flex'; m.classList.add('active'); document.body.style.overflow = 'hidden'; } };
+window.closeSupportModal = function() { var m = el('support-modal'); if (m) { m.style.display = 'none'; m.classList.remove('active'); document.body.style.overflow = ''; } };
 
 // ========== HELPERS ==========
 const el = (id) => document.getElementById(id);
@@ -925,6 +927,9 @@ function setCurrentUser(user, remember) {
 }
 
 function logout() {
+    if (window.API_BASE && window.AlsatAPI && typeof window.AlsatAPI.logout === 'function') {
+        window.AlsatAPI.logout();
+    }
     sessionStorage.removeItem('alsat_currentUser');
     localStorage.removeItem('alsat_currentUser');
     window.userSession.user = null;
@@ -977,6 +982,10 @@ function updateHeaderUI() {
         if (mobileMsgBadge && hMsg) { mobileMsgBadge.textContent = hMsg.textContent || '0'; mobileMsgBadge.style.display = (hMsg.textContent && parseInt(hMsg.textContent, 10) > 0) ? '' : 'none'; }
         var hNotif = el('notif-badge');
         if (mobileNotifBadge && hNotif) { mobileNotifBadge.textContent = hNotif.textContent || '0'; mobileNotifBadge.style.display = (hNotif.textContent && parseInt(hNotif.textContent, 10) > 0) ? '' : 'none'; }
+        const pushPrompt = el('mobile-push-prompt');
+        if (pushPrompt && typeof Notification !== 'undefined') {
+            pushPrompt.style.display = Notification.permission === 'default' ? 'flex' : 'none';
+        }
         const sp = el('stores-page');
         if (sp && sp.style.display === 'block') {
             const loginTxt = el('alsat-login-txt');
@@ -996,6 +1005,8 @@ function updateHeaderUI() {
         if (mobileLogout) mobileLogout.style.display = 'none';
         if (mobileMsg) mobileMsg.style.display = 'none';
         if (mobileNotif) mobileNotif.style.display = 'none';
+        const pushPromptOff = el('mobile-push-prompt');
+        if (pushPromptOff) pushPromptOff.style.display = 'none';
         if (mobileFavBadge) mobileFavBadge.textContent = '0';
         if (mobileMsgBadge) mobileMsgBadge.style.display = 'none';
         if (mobileNotifBadge) mobileNotifBadge.style.display = 'none';
@@ -1196,6 +1207,39 @@ function adminSellerAppStatus(appId, status, rejectReason) {
     }
     renderAdminSellerApps();
     showToast(status === 'approved' ? (L.sellerAppApprovedToast||'Başvuru onaylandı') : (L.sellerAppRejectedToast||'Başvuru reddedildi'), 'info', 2000);
+}
+
+async function renderAdminOnlineUsers() {
+    if (!isAdmin()) return;
+    const totalEl = el('admin-online-total');
+    const ipsEl = el('admin-online-ips');
+    const tbody = el('admin-online-tbody');
+    const badge = el('admin-online-badge');
+    if (totalEl) totalEl.textContent = '...';
+    if (ipsEl) ipsEl.textContent = '...';
+    if (tbody) tbody.innerHTML = '<tr><td colspan="4">Yükleniyor...</td></tr>';
+    let data = { total: 0, uniqueIps: 0, users: [] };
+    if (window.API_BASE && window.AlsatAPI?.getOnlineUsers) {
+        try {
+            const token = localStorage.getItem('alsat_admin_token') || '';
+            data = await window.AlsatAPI.getOnlineUsers(token);
+        } catch (e) {}
+    }
+    if (totalEl) totalEl.textContent = data.total;
+    if (ipsEl) ipsEl.textContent = data.uniqueIps;
+    if (badge) badge.textContent = data.total;
+    if (tbody) {
+        if (data.users.length === 0) tbody.innerHTML = '<tr><td colspan="4">Şu an sitede kimse yok veya API bağlı değil.</td></tr>';
+        else tbody.innerHTML = data.users.map(u => {
+            const last = u.lastActivity ? new Date(u.lastActivity).toLocaleString('tr-TR') : '-';
+            return `<tr><td><code>${escapeHtml(u.ip || '-')}</code></td><td style="font-size:12px;max-width:200px;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(u.userAgent || '')}">${escapeHtml((u.userAgent || '').slice(0, 60))}${(u.userAgent || '').length > 60 ? '...' : ''}</td><td>${u.userId || 'Misafir'}</td><td>${last}</td></tr>`;
+        }).join('');
+    }
+    const refreshBtn = el('admin-refresh-online');
+    if (refreshBtn && !refreshBtn.dataset.bound) {
+        refreshBtn.dataset.bound = '1';
+        refreshBtn.addEventListener('click', () => renderAdminOnlineUsers());
+    }
 }
 
 function renderAdminAnalytics() {
@@ -1593,6 +1637,7 @@ function initAdminTabs() {
             if (tab === 'users') renderAdminUsers();
             if (tab === 'settings') loadAdminSettings();
             if (tab === 'analytics') renderAdminAnalytics();
+            if (tab === 'online') renderAdminOnlineUsers();
             if (tab === 'reports') renderAdminReports();
             if (tab === 'pending') renderAdminPending();
             if (tab === 'seller-apps') renderAdminSellerApps();
@@ -2437,6 +2482,7 @@ function applyFilters() {
         const hist = window.searchHistory.filter(h => h.toLowerCase() !== searchTerm.toLowerCase());
         window.searchHistory = [searchTerm, ...hist].slice(0, 20);
         saveSearchHistory();
+        if (window.AlsatAPI?.recordPopularSearch) window.AlsatAPI.recordPopularSearch(searchTerm).catch(function(){});
         const txt = searchTerm.toLowerCase();
         const buildSearchable = (ad) => {
             let s = (ad.title || '') + ' ' + (ad.description || '') + ' ' + (ad.subCategory || '') + ' ' + (ad.category || '');
@@ -2609,13 +2655,23 @@ function renderPopularSearches() {
     const cats = (window.CATEGORIES_TREE || []).flatMap(g => [g.id, ...(g.sub || [])]).filter(c => c && c !== 'all');
     const catLabels = cats.map(c => (L[c] || c));
     const history = (window.searchHistory || []).slice(0, 8);
-    const suggestions = [...new Set([...history, ...catLabels])].filter(s => s && (!q || String(s).toLowerCase().includes(q))).slice(0, 10);
-    container.innerHTML = suggestions.length ? suggestions.map(term => `<span class="popular-search-chip" role="button" tabindex="0">${escapeHtml(term)}</span>`).join('') : '';
-    container.querySelectorAll('.popular-search-chip').forEach(chip => {
-        const term = chip.textContent;
-        chip.onclick = () => { el('searchInput').value = term; showListingPage(); applyFilters(); };
-        chip.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); chip.click(); } };
-    });
+    let suggestions = [...new Set([...history, ...catLabels])].filter(s => s && (!q || String(s).toLowerCase().includes(q))).slice(0, 10);
+    const render = (terms) => {
+        container.innerHTML = terms.length ? terms.map(term => `<span class="popular-search-chip" role="button" tabindex="0">${escapeHtml(term)}</span>`).join('') : '';
+        container.querySelectorAll('.popular-search-chip').forEach(chip => {
+            const term = chip.textContent;
+            chip.onclick = () => { el('searchInput').value = term; showListingPage(); applyFilters(); };
+            chip.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); chip.click(); } };
+        });
+    };
+    render(suggestions);
+    if (window.AlsatAPI?.getPopularSearches) {
+        window.AlsatAPI.getPopularSearches(8).then(api => {
+            const apiTerms = (api || []).map(x => x.query).filter(Boolean);
+            suggestions = [...new Set([...suggestions, ...apiTerms])].filter(s => s && (!q || String(s).toLowerCase().includes(q))).slice(0, 12);
+            render(suggestions);
+        }).catch(function(){});
+    }
 }
 function renderBreadcrumb() {
     const nav = el('breadcrumb');
@@ -2705,17 +2761,61 @@ function getSkeletonCardsHtml(n) {
     n = n || 8;
     return Array(n).fill(0).map(() => `<div class="skeleton-card"><div class="skeleton-img"></div><div class="skeleton-body"><div class="skeleton-line"></div><div class="skeleton-line short"></div><div class="skeleton-line shorter"></div></div></div>`).join('');
 }
-function renderAds(ads) {
+function adToCardHtml(ad) {
+    const isFav = window.favorites.includes(ad.id);
+    const inCompare = (window.compareList || []).includes(ad.id);
+    const imgSrc = (ad.images && ad.images[0]) || ad.image;
+    const urgentBadge = ad.urgent ? '<span class="badge-urgent">ACİL SATILIK</span>' : '';
+    const fastSellerBadge = ad.userId && isFastSeller(ad.userId) ? '<span class="badge-fast-seller"><i class="fa-solid fa-bolt"></i> Hızlı Satan</span>' : '';
+    const sellerRating = ad.userId ? getSellerRating(ad.userId) : null;
+    const ratingBadge = sellerRating ? `<span class="badge-seller-rating"><i class="fa-solid fa-star"></i> ${sellerRating.avg}</span>` : '';
+    const titleClass = ad.boldTitle ? 'ilan-baslik-kalin' : '';
+    const desc = (ad.description || '').replace(/<[^>]*>/g, '').trim();
+    const descShort = desc ? escapeHtml(desc).slice(0, 90) + (desc.length > 90 ? '...' : '') : '';
+    return `<div class="ilan-kart" data-id="${ad.id}">
+        <div class="resim-alani">
+            ${urgentBadge}${fastSellerBadge}${ratingBadge}
+            <img src="${imgSrc}" alt="${ad.title}" loading="lazy">
+            <div class="fav-btn-container" onclick="window.toggleFavorite(${ad.id}, event)">
+                <i class="fa-${isFav ? 'solid' : 'regular'} fa-heart fav-btn ${isFav ? 'favorilendi' : ''}"></i>
+            </div>
+            <div class="share-btn-container" onclick="event.stopPropagation(); window.shareAdViaWhatsApp(${ad.id});" title="Paylaş"><i class="fa-solid fa-share-nodes"></i></div>
+            <div class="compare-btn-container ${inCompare ? 'in-compare' : ''}" onclick="event.stopPropagation(); window.toggleCompare(${ad.id}, event);" title="Karşılaştır"><i class="fa-solid fa-code-compare"></i></div>
+        </div>
+        <div class="ilan-bilgi">
+            <h4 class="${titleClass}">${ad.title}</h4>
+            <p class="fiyat">${formatPrice(ad)}</p>
+            <p class="konum"><i class="fa-solid fa-location-dot"></i> ${tCity(ad.city)}</p>
+            <button class="mesaj-gonder-btn" onclick="window.sendMessageToAd(${ad.id}); event.stopPropagation();">${t('sendMessage')}</button>
+            ${descShort ? `<p class="ilan-aciklama-ozet">${descShort}</p>` : ''}
+        </div>
+    </div>`;
+}
+function attachCardClickHandlers(container) {
+    if (!container) return;
+    container.querySelectorAll('.ilan-kart').forEach(card => {
+        card.addEventListener('click', function(e) {
+            if (!e.target.closest('.fav-btn-container') && !e.target.closest('.mesaj-gonder-btn') && !e.target.closest('.share-btn-container') && !e.target.closest('.compare-btn-container')) {
+                window.ilanDetayAc(parseInt(this.dataset.id));
+            }
+        });
+    });
+}
+function renderAds(ads, opts) {
+    opts = opts || {};
+    const append = !!opts.append;
     const grid = el('ilan-grid');
     const paginationContainer = el('ilan-pagination');
     if (!grid) return;
-    grid.innerHTML = getSkeletonCardsHtml(12);
+    if (!append) grid.innerHTML = getSkeletonCardsHtml(12);
     const doRender = () => {
     if (ads.length === 0) {
-        const suggest = t('noResultsSuggest');
-        const tryWider = t('tryWiderSearch');
-        grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 40px 20px; color: var(--text-muted);"><p style="font-size: 16px; margin-bottom: 12px;">' + t('noResults') + '</p><p style="font-size: 14px; margin-bottom: 20px;">' + suggest + '</p><button type="button" class="filtre-uygula-btn" onclick="document.getElementById(\'btn-temizle\')?.click(); document.getElementById(\'searchInput\').value=\'\'; applyFilters();" style="margin: 0 auto;">' + tryWider + '</button></div>';
-        if (paginationContainer) paginationContainer.innerHTML = '';
+        if (!append) {
+            const suggest = t('noResultsSuggest');
+            const tryWider = t('tryWiderSearch');
+            grid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 40px 20px; color: var(--text-muted);"><p style="font-size: 16px; margin-bottom: 12px;">' + t('noResults') + '</p><p style="font-size: 14px; margin-bottom: 20px;">' + suggest + '</p><button type="button" class="filtre-uygula-btn" onclick="document.getElementById(\'btn-temizle\')?.click(); document.getElementById(\'searchInput\').value=\'\'; applyFilters();" style="margin: 0 auto;">' + tryWider + '</button></div>';
+            if (paginationContainer) paginationContainer.innerHTML = '';
+        }
         return;
     }
 
@@ -2725,45 +2825,17 @@ function renderAds(ads) {
     const start = (page - 1) * ADS_PER_PAGE;
     const pageAds = ads.slice(start, start + ADS_PER_PAGE);
 
-    grid.innerHTML = pageAds.map(ad => {
-        const isFav = window.favorites.includes(ad.id);
-        const inCompare = (window.compareList || []).includes(ad.id);
-        const imgSrc = (ad.images && ad.images[0]) || ad.image;
-        const urgentBadge = ad.urgent ? '<span class="badge-urgent">ACİL SATILIK</span>' : '';
-        const fastSellerBadge = ad.userId && isFastSeller(ad.userId) ? '<span class="badge-fast-seller"><i class="fa-solid fa-bolt"></i> Hızlı Satan</span>' : '';
-        const sellerRating = ad.userId ? getSellerRating(ad.userId) : null;
-        const ratingBadge = sellerRating ? `<span class="badge-seller-rating"><i class="fa-solid fa-star"></i> ${sellerRating.avg}</span>` : '';
-        const titleClass = ad.boldTitle ? 'ilan-baslik-kalin' : '';
-        const desc = (ad.description || '').replace(/<[^>]*>/g, '').trim();
-        const descShort = desc ? escapeHtml(desc).slice(0, 90) + (desc.length > 90 ? '...' : '') : '';
-        return `
-        <div class="ilan-kart" data-id="${ad.id}">
-            <div class="resim-alani">
-                ${urgentBadge}${fastSellerBadge}${ratingBadge}
-                <img src="${imgSrc}" alt="${ad.title}" loading="lazy">
-                <div class="fav-btn-container" onclick="window.toggleFavorite(${ad.id}, event)">
-                    <i class="fa-${isFav ? 'solid' : 'regular'} fa-heart fav-btn ${isFav ? 'favorilendi' : ''}"></i>
-                </div>
-                <div class="share-btn-container" onclick="event.stopPropagation(); window.shareAdViaWhatsApp(${ad.id});" title="Paylaş"><i class="fa-solid fa-share-nodes"></i></div>
-                <div class="compare-btn-container ${inCompare ? 'in-compare' : ''}" onclick="event.stopPropagation(); window.toggleCompare(${ad.id}, event);" title="Karşılaştır"><i class="fa-solid fa-code-compare"></i></div>
-            </div>
-            <div class="ilan-bilgi">
-                <h4 class="${titleClass}">${ad.title}</h4>
-                <p class="fiyat">${formatPrice(ad)}</p>
-                <p class="konum"><i class="fa-solid fa-location-dot"></i> ${tCity(ad.city)}</p>
-                <button class="mesaj-gonder-btn" onclick="window.sendMessageToAd(${ad.id}); event.stopPropagation();">${t('sendMessage')}</button>
-                ${descShort ? `<p class="ilan-aciklama-ozet">${descShort}</p>` : ''}
-            </div>
-        </div>`;
-    }).join('');
-
-    grid.querySelectorAll('.ilan-kart').forEach(card => {
-        card.addEventListener('click', function(e) {
-            if (!e.target.closest('.fav-btn-container') && !e.target.closest('.mesaj-gonder-btn') && !e.target.closest('.share-btn-container') && !e.target.closest('.compare-btn-container')) {
-                window.ilanDetayAc(parseInt(this.dataset.id));
-            }
-        });
-    });
+    if (append) {
+        const frag = document.createDocumentFragment();
+        const tmp = document.createElement('div');
+        tmp.innerHTML = pageAds.map(ad => adToCardHtml(ad)).join('');
+        while (tmp.firstChild) frag.appendChild(tmp.firstChild);
+        grid.appendChild(frag);
+        attachCardClickHandlers(grid);
+    } else {
+        grid.innerHTML = pageAds.map(ad => adToCardHtml(ad)).join('');
+        attachCardClickHandlers(grid);
+    }
 
     if (paginationContainer && totalPages > 1) {
         let html = '<div class="pagination">';
@@ -2784,6 +2856,24 @@ window.goToAdsPage = function(p) {
     const bolum = document.querySelector('.ilan-bolumu');
     if (bolum) bolum.scrollIntoView({ behavior: 'smooth', block: 'start' });
 };
+
+function setupInfiniteScroll() {
+    const sentinel = el('ilan-infinite-sentinel');
+    if (!sentinel) return;
+    const obs = new IntersectionObserver(function(entries) {
+        const e = entries[0];
+        if (!e || !e.isIntersecting || window.infiniteScrollLoading) return;
+        const ads = window.filteredAdsCache;
+        if (!ads || ads.length === 0) return;
+        const totalPages = Math.ceil(ads.length / ADS_PER_PAGE);
+        if ((window.currentAdsPage || 1) >= totalPages) return;
+        window.infiniteScrollLoading = true;
+        window.currentAdsPage = (window.currentAdsPage || 1) + 1;
+        renderAds(ads, { append: true });
+        window.infiniteScrollLoading = false;
+    }, { rootMargin: '200px', threshold: 0 });
+    obs.observe(sentinel);
+}
 
 function getSellerRating(userId) {
     const key = userId || 'anon';
@@ -2930,13 +3020,14 @@ window.ilanDetayAc = function (adId) {
             ${(ad.userId === (getCurrentUser()?.id) || ad.detailedStats) ? `<p class="ad-stats"><strong>İstatistikler:</strong> Görüntülenme: ${ad.views || 0} | Tıklanma: ${ad.clicks || 0} | Favori: ${ad.favCount || 0}</p>` : ''}
             <p><strong>${t('descriptionLabel')}:</strong> ${ad.description || t('noDesc')}</p>
             <div class="detail-action-buttons">
-                ${ad.phone ? `<a href="${callUrl}" class="detail-btn detail-btn-call"><i class="fa-solid fa-phone"></i> ${t('call')}</a>` : ''}
-                ${ad.phone ? `<a href="${whatsappUrl}" target="_blank" class="detail-btn detail-btn-whatsapp"><i class="fa-brands fa-whatsapp"></i> ${t('whatsapp')}</a>` : ''}
+                ${ad.phone ? (ad.hide_phone ? `<button type="button" class="detail-btn detail-btn-call" id="btn-show-phone-${ad.id}" onclick="window.revealPhone(${ad.id});"><i class="fa-solid fa-phone"></i> ${t('showPhone') || 'Numarayı Göster'}</button><span id="phone-revealed-${ad.id}" style="display:none;"><a href="${callUrl}" class="detail-btn detail-btn-call"><i class="fa-solid fa-phone"></i> ${t('call')}</a> <a href="${whatsappUrl}" target="_blank" class="detail-btn detail-btn-whatsapp"><i class="fa-brands fa-whatsapp"></i> ${t('whatsapp')}</a></span>` : `<a href="${callUrl}" class="detail-btn detail-btn-call"><i class="fa-solid fa-phone"></i> ${t('call')}</a><a href="${whatsappUrl}" target="_blank" class="detail-btn detail-btn-whatsapp"><i class="fa-brands fa-whatsapp"></i> ${t('whatsapp')}</a>`) : ''}
                 <button type="button" class="detail-btn detail-btn-primary" onclick="window.sendMessageToAd(${ad.id}); window.closeDetailModal();"><i class="fa-solid fa-message"></i> ${t('messageSeller')}</button>
                 ${canUserRateAd(ad.id) ? `<button type="button" class="detail-btn detail-btn-outline" onclick="window.openRatingModal(${ad.id}); return false;"><i class="fa-solid fa-star"></i> ${t('rateSeller')}</button>` : ''}
                 <button type="button" class="detail-btn detail-btn-outline detail-btn-danger" onclick="window.openReportModal(${ad.id}); return false;"><i class="fa-solid fa-flag"></i> ${t('reportAd')}</button>
                 ${getCurrentUser() ? `<button type="button" class="detail-btn detail-btn-outline" id="btn-price-alert-${ad.id}" onclick="window.togglePriceAlert(${ad.id}); return false;"><i class="fa-solid fa-bell"></i> <span id="price-alert-txt-${ad.id}">${hasPriceAlert(ad.id) ? t('priceAlertOff') : t('priceAlertOn')}</span></button>` : ''}
-                <button type="button" class="detail-btn detail-btn-outline" onclick="window.shareAdViaWhatsApp(${ad.id}); return false;"><i class="fa-brands fa-whatsapp" style="color:#25D366"></i> Paylaş</button>
+                <button type="button" class="detail-btn detail-btn-outline" onclick="window.shareAdViaWhatsApp(${ad.id}); return false;"><i class="fa-brands fa-whatsapp" style="color:#25D366"></i> WhatsApp</button>
+                <button type="button" class="detail-btn detail-btn-outline" onclick="window.shareAdViaFacebook(${ad.id}); return false;"><i class="fa-brands fa-facebook" style="color:#1877f2"></i> Facebook</button>
+                <button type="button" class="detail-btn detail-btn-outline" onclick="window.shareAdViaTwitter(${ad.id}); return false;"><i class="fa-brands fa-x-twitter"></i> X</button>
                 <button type="button" class="detail-btn detail-btn-outline" onclick="window.copyAdLink(${ad.id}); return false;"><i class="fa-solid fa-link"></i> ${t('copyLink') || 'Link'}</button>
                 <button type="button" class="detail-btn detail-btn-outline" onclick="window.shareAdViaQR(${ad.id}); return false;"><i class="fa-solid fa-qrcode"></i> QR Kod</button>
                 <button type="button" class="detail-btn detail-btn-outline" onclick="window.toggleCompare(${ad.id}, event); renderCompareBar(); return false;"><i class="fa-solid fa-code-compare"></i> ${(window.compareList || []).includes(ad.id) ? 'Karşılaştırmadan Çıkar' : 'Karşılaştırmaya Ekle'}</button>
@@ -2949,6 +3040,7 @@ window.ilanDetayAc = function (adId) {
     `;
     modal.style.display = 'flex';
     modal.classList.add('active');
+    if (typeof updateMetaTags === 'function') updateMetaTags(ad.title, (ad.description || '').slice(0, 160));
     const videoElem = modal.querySelector('.detail-video');
     const imgElem = modal.querySelector('.detail-img');
     modal.querySelectorAll('.detail-gallery-thumb').forEach((thumb) => {
@@ -3114,9 +3206,33 @@ window.shareAdViaWhatsApp = function(adId) {
     const text = encodeURIComponent(ad.title + ' - ' + formatPrice(ad) + '\n' + url);
     window.open('https://wa.me/?text=' + text, '_blank');
 };
+window.revealPhone = function(adId) {
+    const btn = el('btn-show-phone-' + adId);
+    const span = el('phone-revealed-' + adId);
+    if (btn && span) {
+        btn.style.display = 'none';
+        span.style.display = 'inline';
+        if (window.API_BASE && window.AlsatAPI?.isLoggedIn?.() && window.AlsatAPI.recordPhoneView) {
+            window.AlsatAPI.recordPhoneView(adId).catch(function(){});
+        }
+    }
+};
 window.copyAdLink = function(adId) {
     const url = location.origin + location.pathname + '#ad=' + adId;
     navigator.clipboard?.writeText(url).then(() => showToast('linkCopied', 'success', 1500));
+};
+window.shareAdViaFacebook = function(adId) {
+    const ad = window.adsDatabase?.find(a => a.id === adId);
+    if (!ad) return;
+    const url = encodeURIComponent(location.origin + location.pathname + '#ad=' + adId);
+    window.open('https://www.facebook.com/sharer/sharer.php?u=' + url, '_blank', 'width=600,height=400');
+};
+window.shareAdViaTwitter = function(adId) {
+    const ad = window.adsDatabase?.find(a => a.id === adId);
+    if (!ad) return;
+    const text = encodeURIComponent(ad.title + ' - ' + formatPrice(ad));
+    const url = encodeURIComponent(location.origin + location.pathname + '#ad=' + adId);
+    window.open('https://twitter.com/intent/tweet?text=' + text + '&url=' + url, '_blank', 'width=600,height=400');
 };
 window.shareAdViaQR = function(adId) {
     const ad = window.adsDatabase?.find(a => a.id === adId);
@@ -3135,32 +3251,41 @@ window.shareAdViaQR = function(adId) {
     m.style.display = 'flex';
 };
 
-window.submitReport = function (adId) {
+window.submitReport = async function (adId) {
     const user = getCurrentUser();
     if (!user) return;
     const reason = (el('report-reason')?.value) || 'other';
     const note = (el('report-note')?.value || '').trim();
     const ad = window.adsDatabase.find(a => a.id === adId);
     if (!ad) return;
-    window.reportsDatabase = window.reportsDatabase || [];
-    window.reportsDatabase.push({
-        id: Date.now(),
-        adId,
-        adTitle: ad.title,
-        reporterId: user.id,
-        reporterName: user.name,
-        reason,
-        note,
-        createdAt: new Date().toISOString(),
-        status: 'pending'
-    });
-    saveReports();
+    if (window.API_BASE && window.AlsatAPI && window.AlsatAPI.isLoggedIn && window.AlsatAPI.isLoggedIn()) {
+        try {
+            await window.AlsatAPI.reportAd(adId, reason + (note ? ': ' + note : ''));
+        } catch (e) {
+            showToast(e && e.error ? e.error : 'Rapor gönderilemedi', 'error', 2500);
+            return;
+        }
+    } else {
+        window.reportsDatabase = window.reportsDatabase || [];
+        window.reportsDatabase.push({
+            id: Date.now(),
+            adId,
+            adTitle: ad.title,
+            reporterId: user.id,
+            reporterName: user.name,
+            reason,
+            note,
+            createdAt: new Date().toISOString(),
+            status: 'pending'
+        });
+        saveReports();
+    }
     el('report-ad-modal').style.display = 'none';
     showToast('reportSuccess', 'success', 2500);
 };
 
 // ========== FAVORİ ==========
-window.toggleFavorite = function (adId, event) {
+window.toggleFavorite = async function (adId, event) {
     if (event) event.stopPropagation();
     const user = getCurrentUser();
     if (!user) {
@@ -3170,16 +3295,33 @@ window.toggleFavorite = function (adId, event) {
     }
     const idx = window.favorites.indexOf(adId);
     const ad = window.adsDatabase.find(a => a.id === adId);
-    if (idx >= 0) {
-        window.favorites.splice(idx, 1);
-        if (ad) { ad.favCount = Math.max(0, (ad.favCount || 0) - 1); saveAdsDatabase(); }
-        showToast('favRemoved', 'info', 1500);
+    if (window.API_BASE && window.AlsatAPI && window.AlsatAPI.isLoggedIn && window.AlsatAPI.isLoggedIn()) {
+        try {
+            if (idx >= 0) {
+                await window.AlsatAPI.removeFavorite(user.id, adId);
+                window.favorites.splice(idx, 1);
+                showToast('favRemoved', 'info', 1500);
+            } else {
+                await window.AlsatAPI.addFavorite(adId);
+                window.favorites.push(adId);
+                showToast('favAdded', 'success', 1500);
+            }
+        } catch (e) {
+            showToast(e && e.error ? e.error : 'Bir hata oluştu', 'error', 2000);
+            return;
+        }
     } else {
-        window.favorites.push(adId);
-        if (ad) { ad.favCount = (ad.favCount || 0) + 1; saveAdsDatabase(); }
-        showToast('favAdded', 'success', 1500);
+        if (idx >= 0) {
+            window.favorites.splice(idx, 1);
+            if (ad) { ad.favCount = Math.max(0, (ad.favCount || 0) - 1); saveAdsDatabase(); }
+            showToast('favRemoved', 'info', 1500);
+        } else {
+            window.favorites.push(adId);
+            if (ad) { ad.favCount = (ad.favCount || 0) + 1; saveAdsDatabase(); }
+            showToast('favAdded', 'success', 1500);
+        }
+        saveFavorites();
     }
-    saveFavorites();
     applyFilters();
     updateHeaderUI();
 };
@@ -3215,12 +3357,13 @@ function renderCompareBar() {
     bar.classList.add('visible');
     if (txt) txt.textContent = list.length + ' ilan seçildi';
     btn.onclick = () => window.openCompareModal();
-    bar.querySelector('.compare-bar-clear')?.addEventListener('click', () => {
+    var clearBtn = bar.querySelector('.compare-bar-clear');
+    if (clearBtn) clearBtn.onclick = function() {
         window.compareList = [];
         saveCompareList();
         renderCompareBar();
         applyFilters();
-    });
+    };
 }
 window.openCompareModal = function() {
     const ids = window.compareList || [];
@@ -4020,12 +4163,18 @@ window.openCartPage = function() {
     el('cart-checkout-btn').onclick = () => showToast(L.goToCheckout || 'Ödeme sayfası yakında', 'info');
 };
 
-window.openFavoritesPage = function () {
+window.openFavoritesPage = async function () {
     const user = getCurrentUser();
     if (!user) {
         showToast('loginRequired', 'warning', 2000);
         window.openLoginModal();
         return;
+    }
+    if (window.API_BASE && window.AlsatAPI && window.AlsatAPI.isLoggedIn && window.AlsatAPI.isLoggedIn()) {
+        try {
+            const apiFavs = await window.AlsatAPI.getFavorites(user.id);
+            if (Array.isArray(apiFavs)) window.favorites = apiFavs;
+        } catch (e) { /* keep local */ }
     }
     document.querySelectorAll('.profile-page-container').forEach(p => p.style.display = 'none');
     el('favorites-page').style.display = 'block';
@@ -4115,21 +4264,38 @@ function openMyAdsPage() {
                     <p>${tCity(ad.city)}</p>
                     ${statsHtml}
                     <div class="my-ad-actions">
-                        <button class="ad-action-btn ad-bump-btn" data-id="${ad.id}" ${bumpDisabled ? 'disabled' : ''}>Yukarı Taşı (${getSiteSettings().bumpPrice} MKD)</button>
-                        <button class="ad-action-btn ad-edit-btn" data-id="${ad.id}">${t('edit')}</button>
-                        <button class="ad-action-btn ad-delete-btn" onclick="deleteAd(${ad.id})">${t('delete')}</button>
+                        <button type="button" class="ad-action-btn ad-bump-btn" data-id="${ad.id}" data-status="${status}">${t('bumpAd')} (${getSiteSettings().bumpPrice} MKD)</button>
+                        <button type="button" class="ad-action-btn ad-edit-btn" data-id="${ad.id}">${t('edit')}</button>
+                        <button type="button" class="ad-action-btn ad-delete-btn" data-id="${ad.id}">${t('delete')}</button>
                     </div>
                 </div>
             </div>
         `;
         }).join('');
         list.querySelectorAll('.ad-bump-btn').forEach(btn => {
-            btn.addEventListener('click', function(e) { e.stopPropagation(); bumpAd(parseInt(this.dataset.id)); });
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                e.preventDefault();
+                if (this.dataset.status !== 'approved') {
+                    showToast('bumpRequiresApproved', 'warning', 2500);
+                    return;
+                }
+                bumpAd(parseInt(this.dataset.id, 10));
+            });
         });
         list.querySelectorAll('.ad-edit-btn').forEach(btn => {
             btn.addEventListener('click', function(e) {
                 e.stopPropagation();
-                openIlanModalForEdit(parseInt(this.dataset.id));
+                e.preventDefault();
+                const id = parseInt(this.dataset.id, 10);
+                if (!isNaN(id)) openIlanModalForEdit(id);
+            });
+        });
+        list.querySelectorAll('.ad-delete-btn').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                e.stopPropagation();
+                e.preventDefault();
+                deleteAd(parseInt(this.dataset.id, 10));
             });
         });
     }
@@ -4157,8 +4323,16 @@ window.bumpAd = function(id) {
     showToast('bumpSuccess', 'success', 2000);
 };
 
-function deleteAd(id) {
+window.deleteAd = async function deleteAd(id) {
     if (!confirm(t('deleteConfirm') || 'Bu ilanı silmek istediğinize emin misiniz?')) return;
+    if (window.API_BASE && window.AlsatAPI && window.AlsatAPI.isLoggedIn && window.AlsatAPI.isLoggedIn()) {
+        try {
+            await window.AlsatAPI.deleteAd(id);
+        } catch (e) {
+            showToast(e && e.error ? e.error : 'Silinemedi', 'error', 2000);
+            return;
+        }
+    }
     const favIdx = window.favorites.indexOf(id);
     if (favIdx >= 0) { window.favorites.splice(favIdx, 1); saveFavorites(); }
     window.adsDatabase = window.adsDatabase.filter(a => a.id !== id);
@@ -4167,7 +4341,7 @@ function deleteAd(id) {
     applyFilters();
     updateHeaderUI();
     showToast('adDeleted', 'info', 2000);
-}
+};
 
 // ========== MESAJLAŞMA (SİTE İÇİ) ==========
 function getConvKey(adId, buyerId) { return adId + '_' + buyerId; }
@@ -4334,6 +4508,9 @@ function selectConversation(convKey) {
     });
     const msgList = mv.querySelector('.message-list');
     if (msgList) msgList.scrollTop = msgList.scrollHeight;
+    if (window.API_BASE && window.AlsatAPI && c.id) {
+        window.AlsatAPI.markMessagesAsRead(c.id);
+    }
 }
 
 function escapeHtml(s) { const d=document.createElement('div'); d.textContent=s||''; return d.innerHTML; }
@@ -4357,12 +4534,14 @@ function formatDateSeparator(ts) {
 function formatMessagesWithDates(messages, myId) {
     let lastDate = '';
     return messages.map(m => {
-        const isMe = m.from === myId;
+        const fromId = m.from ?? m.from_user_id;
+        const isMe = fromId == myId;
         const d = new Date(m.time || 0);
         const dateKey = d.toDateString();
         let sep = '';
         if (dateKey !== lastDate) { lastDate = dateKey; sep = `<div class="msg-date-sep">${formatDateSeparator(m.time)}</div>`; }
-        return sep + `<div class="msg-row ${isMe ? 'sent' : 'received'}"><div class="msg-bubble ${isMe ? 'sent' : 'received'}">${escapeHtml(m.text)}<span class="msg-time">${formatMessageTime(m.time)}</span></div></div>`;
+        const readBadge = (isMe && m.read_at) ? '<span class="msg-read" title="' + (t('read') || 'Okundu') + '"><i class="fa-solid fa-check-double"></i></span>' : '';
+        return sep + `<div class="msg-row ${isMe ? 'sent' : 'received'}"><div class="msg-bubble ${isMe ? 'sent' : 'received'}">${escapeHtml(m.text)}<span class="msg-meta">${readBadge}<span class="msg-time">${formatMessageTime(m.time)}</span></span></div></div>`;
     }).join('');
 }
 
@@ -4533,13 +4712,17 @@ window.closeForgotModal = function () {
     if (el('forgot-step1')) el('forgot-step1').style.display = 'block';
     if (el('forgot-step2')) el('forgot-step2').style.display = 'none';
 };
-window.closeModal = function () { el('ilan-modal').style.display = 'none'; };
+window.closeModal = function () {
+    var m = el('ilan-modal');
+    if (m) { m.style.display = 'none'; m.classList.remove('active'); document.body.style.overflow = ''; }
+};
 
 // Close modal on outside click
 document.addEventListener('click', function(e) {
     if (e.target.classList.contains('modern-modal')) {
         e.target.style.display = 'none';
         e.target.classList.remove('active');
+        if (e.target.id === 'ilan-modal' || e.target.id === 'support-modal') document.body.style.overflow = '';
     }
 });
 
@@ -4685,6 +4868,7 @@ function getAdFormData(editId) {
         images: images,
         video: selectedVideo || null,
         phone: el('ilan-tel').value.trim(),
+        hidePhone: !!el('ilan-hide-phone')?.checked,
         seller: user?.name,
         description: el('ilan-aciklama').value.trim(),
         views: existing?.views || 0,
@@ -4747,15 +4931,26 @@ function resetAdForm() {
     if (videoOnizleme) videoOnizleme.innerHTML = '';
     if (videoInput) videoInput.value = '';
     if (fotoInput) fotoInput.value = '';
+    const baslik = el('ilan-baslik'); if (baslik) baslik.value = '';
+    const fiyat = el('ilan-fiyat'); if (fiyat) fiyat.value = '';
+    const kat = el('form-kat-select'); if (kat) kat.value = '';
+    const durum = el('ilan-durum'); if (durum) durum.value = 'İkinci El';
+    const kimden = el('ilan-kimden'); if (kimden) kimden.value = 'Sahibinden';
+    const sehir = el('form-sehir-select'); if (sehir) sehir.value = '';
+    const ilce = el('form-ilce-select'); if (ilce) ilce.innerHTML = '<option value="">' + (t('districtSelect') || 'Önce Şehir Seçin') + '</option>';
+    const tel = el('ilan-tel'); if (tel) tel.value = '';
+    const acik = el('ilan-aciklama'); if (acik) acik.value = '';
+    const takas = el('ilan-takas'); if (takas) takas.checked = false;
+    const hidePhone = el('ilan-hide-phone'); if (hidePhone) hidePhone.checked = false;
     qsa('#ilan-formu [id^="prem-"]').forEach(cb => { if (cb.type === 'checkbox') cb.checked = false; });
-    el('prem-multicity-cities').style.display = 'none';
-    el('prem-city2').value = '';
-    el('prem-city3').value = '';
+    const pmc = el('prem-multicity-cities'); if (pmc) pmc.style.display = 'none';
+    const pc2 = el('prem-city2'); if (pc2) pc2.value = '';
+    const pc3 = el('prem-city3'); if (pc3) pc3.value = '';
     updatePremiumTotal();
-    el('ilan-modal').dataset.editId = '';
+    const mod = el('ilan-modal'); if (mod) mod.dataset.editId = '';
     const curSel = el('ilan-para-birimi');
     if (curSel) curSel.value = 'MKD';
-    el('modal-baslik').textContent = window.TRANSLATIONS?.[window.currentLang]?.newAdTitle || 'Yeni İlan Oluştur';
+    const mb = el('modal-baslik'); if (mb) mb.textContent = window.TRANSLATIONS?.[window.currentLang]?.newAdTitle || 'Yeni İlan Oluştur';
     renderCategoryExtraFields();
 }
 function updatePremiumTotal() {
@@ -4778,7 +4973,9 @@ function initBannerClicks() {
     var ozel = el('banner-ozel-teklifler');
     function doHizli() {
         if (!getCurrentUser()) { showToast('postAdRequired', 'warning', 2000); window.openLoginModal(); return; }
-        el('ilan-modal').style.display = 'flex';
+        resetAdForm();
+        var m = el('ilan-modal');
+        if (m) { m.style.display = 'flex'; m.classList.add('active'); document.body.style.overflow = 'hidden'; }
     }
     function doYeni() {
         window.bannerFeaturedOnly = false;
@@ -4817,50 +5014,113 @@ function initPremiumForm() {
     updatePremiumTotal();
 }
 window.openIlanModalForEdit = function(adId) {
-    const ad = window.adsDatabase.find(a => a.id === adId);
-    if (!ad) return;
-    selectedImages = (ad.images && ad.images.length) ? [...ad.images] : (ad.image ? [ad.image] : []);
-    selectedVideo = ad.video || null;
-    rebuildPhotoPreviews();
-    if (videoOnizleme) {
-        videoOnizleme.innerHTML = selectedVideo ? `<video src="${selectedVideo}" controls style="max-width:100%;max-height:200px;border-radius:8px;margin-top:10px;"></video><button type="button" class="remove-video-btn" onclick="videoInput.value='';selectedVideo=null;el('video-onizleme-alani').innerHTML='';">&times; Kaldır</button>` : '';
+    const ad = (window.adsDatabase || []).find(a => a.id == adId || a.id === adId);
+    if (!ad) {
+        showToast('İlan bulunamadı', 'error', 2000);
+        return;
     }
-    if (videoInput) videoInput.value = '';
-    el('ilan-baslik').value = ad.title;
-    el('ilan-fiyat').value = ad.price;
-    const curSel = el('ilan-para-birimi');
-    if (curSel) curSel.value = ad.currency || 'EUR';
-    el('form-kat-select').value = ad.subCategory || ad.category;
-    const durumEl = el('ilan-durum');
-    const kimdenEl = el('ilan-kimden');
-    if (durumEl) durumEl.value = ad.condition || 'İkinci El';
-    if (kimdenEl) kimdenEl.value = ad.sellerType || 'Sahibinden';
-    if (el('ilan-takas')) el('ilan-takas').checked = !!ad.acceptTrade;
-    el('form-sehir-select').value = ad.city;
-    const formIlce = el('form-ilce-select');
-    if (ad.city && lokasyonlar[ad.city]) {
-        formIlce.innerHTML = '<option value="">' + t('districtSelect') + '</option>' + lokasyonlar[ad.city].map(d => `<option value="${d}">${tDistrict(d)}</option>`).join('');
-        formIlce.value = ad.district || '';
+    try {
+        selectedImages = (ad.images && ad.images.length) ? [...ad.images] : (ad.image ? [ad.image] : []);
+        selectedVideo = ad.video || null;
+        rebuildPhotoPreviews();
+        if (videoOnizleme) {
+            videoOnizleme.innerHTML = selectedVideo ? `<video src="${selectedVideo}" controls style="max-width:100%;max-height:200px;border-radius:8px;margin-top:10px;"></video><button type="button" class="remove-video-btn" onclick="videoInput.value='';selectedVideo=null;el('video-onizleme-alani').innerHTML='';">&times; Kaldır</button>` : '';
+        }
+        if (videoInput) videoInput.value = '';
+        const b = el('ilan-baslik'); if (b) b.value = ad.title || '';
+        const f = el('ilan-fiyat'); if (f) f.value = ad.price ?? '';
+        const curSel = el('ilan-para-birimi');
+        if (curSel) curSel.value = ad.currency || 'EUR';
+        const kat = el('form-kat-select'); if (kat) kat.value = ad.subCategory || ad.category || '';
+        const durumEl = el('ilan-durum');
+        const kimdenEl = el('ilan-kimden');
+        if (durumEl) durumEl.value = ad.condition || 'İkinci El';
+        if (kimdenEl) kimdenEl.value = ad.sellerType || 'Sahibinden';
+        if (el('ilan-takas')) el('ilan-takas').checked = !!ad.acceptTrade;
+        const sehir = el('form-sehir-select'); if (sehir) sehir.value = ad.city || '';
+        const formIlce = el('form-ilce-select');
+        if (formIlce && ad.city && lokasyonlar && lokasyonlar[ad.city]) {
+            formIlce.innerHTML = '<option value="">' + t('districtSelect') + '</option>' + lokasyonlar[ad.city].map(d => `<option value="${d}">${tDistrict(d)}</option>`).join('');
+            formIlce.value = ad.district || '';
+        }
+        const tel = el('ilan-tel'); if (tel) tel.value = ad.phone || '';
+        const hidePhoneCb = el('ilan-hide-phone'); if (hidePhoneCb) hidePhoneCb.checked = !!ad.hidePhone;
+        const acik = el('ilan-aciklama'); if (acik) acik.value = ad.description || '';
+        const pv = el('prem-vitrin'); if (pv) pv.checked = !!ad.featured;
+        const pf = el('prem-font'); if (pf) pf.checked = !!ad.boldTitle;
+        const pu = el('prem-urgent'); if (pu) pu.checked = !!ad.urgent;
+        const ps = el('prem-stats'); if (ps) ps.checked = !!ad.detailedStats;
+        const pe = el('prem-extend'); if (pe) pe.checked = (ad.durationDays || 30) >= 60;
+        const pm = el('prem-multicity'); if (pm) pm.checked = !!(ad.cities && ad.cities.length > 1);
+        const pver = el('prem-verified'); if (pver) pver.checked = !!ad.verifiedSeller;
+        if (el('prem-multicity-cities')) el('prem-multicity-cities').style.display = ad.cities && ad.cities.length > 1 ? 'block' : 'none';
+        const pc2 = el('prem-city2'); if (pc2 && ad.cities && ad.cities.length >= 2) pc2.value = ad.cities[1] || '';
+        const pc3 = el('prem-city3'); if (pc3 && ad.cities && ad.cities.length >= 3) pc3.value = ad.cities[2] || '';
+        renderCategoryExtraFields();
+        setCategoryAttrsToForm(ad.attrs || {});
+        updatePremiumTotal();
+        const mod = el('ilan-modal');
+        if (mod) {
+            mod.dataset.editId = adId;
+            const mb = el('modal-baslik'); if (mb) mb.textContent = (window.TRANSLATIONS?.[window.currentLang]?.editAd || 'İlan Düzenle');
+            mod.style.display = 'flex';
+            mod.classList.add('active');
+            document.body.style.overflow = 'hidden';
+        }
+    } catch (err) {
+        console.error('openIlanModalForEdit:', err);
+        showToast('Düzenleme açılamadı', 'error', 2000);
     }
-    el('ilan-tel').value = ad.phone || '';
-    el('ilan-aciklama').value = ad.description || '';
-    el('prem-vitrin').checked = !!ad.featured;
-    el('prem-font').checked = !!ad.boldTitle;
-    el('prem-urgent').checked = !!ad.urgent;
-    el('prem-stats').checked = !!ad.detailedStats;
-    el('prem-extend').checked = (ad.durationDays || 30) >= 60;
-    el('prem-multicity').checked = !!(ad.cities && ad.cities.length > 1);
-    el('prem-verified').checked = !!ad.verifiedSeller;
-    if (el('prem-multicity-cities')) el('prem-multicity-cities').style.display = ad.cities && ad.cities.length > 1 ? 'block' : 'none';
-    if (ad.cities && ad.cities.length >= 2) el('prem-city2').value = ad.cities[1] || '';
-    if (ad.cities && ad.cities.length >= 3) el('prem-city3').value = ad.cities[2] || '';
-    renderCategoryExtraFields();
-    setCategoryAttrsToForm(ad.attrs || {});
-    updatePremiumTotal();
-    el('ilan-modal').dataset.editId = adId;
-    el('modal-baslik').textContent = (window.TRANSLATIONS?.[window.currentLang]?.editAd || 'İlan Düzenle');
-    el('ilan-modal').style.display = 'flex';
 };
+function getDraftFormData() {
+    const katVal = el('form-kat-select')?.value || '';
+    const grp = window.CATEGORIES_TREE?.find(g => g.id === katVal || (g.sub || []).includes(katVal));
+    let parentCat = katVal, subCat = '';
+    if (grp) { if (grp.sub && grp.sub.includes(katVal)) { parentCat = grp.id; subCat = katVal; } else { parentCat = katVal; } }
+    return {
+        title: (el('ilan-baslik')?.value || '').trim(),
+        price: parseFloat(el('ilan-fiyat')?.value) || 0,
+        currency: el('ilan-para-birimi')?.value || 'MKD',
+        category: parentCat || subCat,
+        subCategory: subCat,
+        city: el('form-sehir-select')?.value || '',
+        district: el('form-ilce-select')?.value || '',
+        description: (el('ilan-aciklama')?.value || '').trim(),
+        phone: (el('ilan-tel')?.value || '').trim(),
+        condition: el('ilan-durum')?.value || 'İkinci El',
+        sellerType: el('ilan-kimden')?.value || 'Sahibinden',
+        acceptTrade: !!el('ilan-takas')?.checked,
+        images: selectedImages || [],
+        video: selectedVideo,
+        attrs: {},
+        premVitrin: !!el('prem-vitrin')?.checked,
+        premFont: !!el('prem-font')?.checked,
+        premUrgent: !!el('prem-urgent')?.checked,
+        premStats: !!el('prem-stats')?.checked,
+        premExtend: !!el('prem-extend')?.checked,
+        premMulticity: !!el('prem-multicity')?.checked,
+        premVerified: !!el('prem-verified')?.checked,
+        premCity2: el('prem-city2')?.value || '',
+        premCity3: el('prem-city3')?.value || ''
+    };
+}
+
+el('btn-taslak-kaydet')?.addEventListener('click', async function() {
+    const user = getCurrentUser();
+    if (!user) { showToast('loginRequired', 'warning', 2000); window.openLoginModal(); return; }
+    const data = getDraftFormData();
+    data.attrs = typeof getCategoryAttrsFromForm === 'function' ? getCategoryAttrsFromForm() : {};
+    if (window.API_BASE && window.AlsatAPI?.saveDraft) {
+        try {
+            await window.AlsatAPI.saveDraft(data);
+            showToast(t('saved') || 'Taslak kaydedildi', 'success', 2000);
+        } catch (e) { showToast('Taslak kaydedilemedi', 'error', 2000); }
+    } else {
+        localStorage.setItem('alsat_last_draft', JSON.stringify(data));
+        showToast(t('saved') || 'Taslak kaydedildi', 'success', 2000);
+    }
+});
+
 el('ilan-formu')?.addEventListener('submit', async function(e) {
     e.preventDefault();
     const user = getCurrentUser();
@@ -4894,8 +5154,15 @@ el('ilan-formu')?.addEventListener('submit', async function(e) {
     }
     delete adData.premiumCost;
     if (editId) {
+        if (window.API_BASE && window.AlsatAPI && window.AlsatAPI.isLoggedIn && window.AlsatAPI.isLoggedIn()) {
+            try {
+                await window.AlsatAPI.updateAd(editId, { title: adData.title, price: adData.price, currency: adData.currency, category: adData.category, subCategory: adData.subCategory, city: adData.city, district: adData.district, description: adData.description, images: adData.images, attrs: adData.attrs, condition: adData.condition, sellerType: adData.sellerType, hidePhone: adData.hidePhone });
+            } catch (err) {
+                showToast(err?.error || 'Güncelleme başarısız', 'error', 2500);
+                return;
+            }
+        }
         const idx = window.adsDatabase.findIndex(a => a.id === editId);
-        const oldAd = idx >= 0 ? window.adsDatabase[idx] : null;
         const newPriceEur = priceToEur(adData.price, adData.currency);
         if (idx >= 0) window.adsDatabase[idx] = { ...window.adsDatabase[idx], ...adData };
         (window.priceAlerts || []).filter(a => a.adId === editId && a.priceAtSubscribe > newPriceEur).forEach(a => {
@@ -4917,7 +5184,7 @@ el('ilan-formu')?.addEventListener('submit', async function(e) {
         showToast(getSiteSettings().adRequiresApproval ? 'adPendingApproval' : 'adPublished', 'success', 2000);
     }
     saveAdsDatabase();
-    el('ilan-modal').style.display = 'none';
+    closeModal();
     resetAdForm();
     this.reset();
     applyFilters();
@@ -4931,12 +5198,20 @@ el('login-formu')?.addEventListener('submit', async function(e) {
     const password = (el('login-password')?.value || '').trim();
     const remember = !!(el('remember-login')?.checked);
     if (!email) { showToast('loginRequired', 'warning', 2000); return; }
+    let recaptchaToken = null;
+    if (window.RECAPTCHA_SITE_KEY && typeof grecaptcha !== 'undefined' && grecaptcha.execute) {
+        try { recaptchaToken = await grecaptcha.execute(window.RECAPTCHA_SITE_KEY, { action: 'login' }); } catch (err) {}
+    }
     if (window.API_BASE && window.AlsatAPI) {
         try {
-            const user = await window.AlsatAPI.login(email, password);
+            const user = await window.AlsatAPI.login(email, password, recaptchaToken);
             if (user && user.id) {
                 getOrCreateUser(user.id, user.email, user.name);
                 setCurrentUser(user, remember);
+                try {
+                    const apiFavs = await window.AlsatAPI.getFavorites(user.id);
+                    if (Array.isArray(apiFavs)) window.favorites = apiFavs;
+                } catch (e) {}
                 updateHeaderUI();
                 closeLoginModal();
                 showToast('loginSuccess', 'success', 2000);
@@ -5066,6 +5341,7 @@ qsa('.toggle-password').forEach(btn => {
 // ========== EVENT BINDINGS ==========
 document.addEventListener('DOMContentLoaded', async function() {
     try {
+    setupInfiniteScroll();
     // TÜM KRİTİK TIKLAMALAR - Document delegation (hiçbir init hatası engellemesin)
     document.addEventListener('click', function criticalClick(e) {
         var t = e.target;
@@ -5186,7 +5462,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
         if (t.closest && t.closest('#homepage-ilan-ver')) {
             e.preventDefault();
-            if (window.getCurrentUser && getCurrentUser()) { var m = document.getElementById('ilan-modal'); if (m) m.style.display = 'flex'; }
+            if (window.getCurrentUser && getCurrentUser()) { if (typeof resetAdForm === 'function') resetAdForm(); var m = document.getElementById('ilan-modal'); if (m) { m.style.display = 'flex'; m.classList.add('active'); document.body.style.overflow = 'hidden'; } }
             else { (window.showToast||function(){})(typeof window.t==='function'?t('postAdRequired'):'Giriş yapınız','warning',2000); (window.openLoginModal||function(){})(); }
             return;
         }
@@ -5198,6 +5474,16 @@ document.addEventListener('DOMContentLoaded', async function() {
             return;
         }
     }, true);
+
+    // Online sayım için periyodik ping (API varsa)
+    if (window.API_BASE) {
+        setInterval(function() {
+            const opts = {};
+            const tok = window.AlsatAPI?.getToken?.();
+            if (tok) opts.headers = { 'Authorization': 'Bearer ' + tok };
+            fetch(window.API_BASE + '/api/ping', opts).catch(function(){});
+        }, 45000);
+    }
 
     // Homepage içeriğini hemen doldur - butonlar çalışsın diye
     try { if (typeof initHomepage === 'function') initHomepage(); } catch (eh) { console.warn('initHomepage early:', eh); }
@@ -5243,7 +5529,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 if (!u) {
                     (window.showToast || function(){})('Giriş yapınız', 'warning', 2000);
                     (window.openLoginModal || function(){})();
-                } else { var m = document.getElementById('ilan-modal'); if (m) m.style.display = 'flex'; }
+                } else { if (typeof resetAdForm === 'function') resetAdForm(); var m = document.getElementById('ilan-modal'); if (m) { m.style.display = 'flex'; m.classList.add('active'); document.body.style.overflow = 'hidden'; } }
             }
             else if (id === 'mobile-action-fav') { (window.openFavoritesPage || function(){})(); }
             else if (id === 'mobile-action-support') { (window.openSupportModal || function(){})(); }
@@ -5278,6 +5564,11 @@ document.addEventListener('DOMContentLoaded', async function() {
             if (users && typeof users === 'object') {
                 window.usersDatabase = users;
                 saveUsersDatabase();
+            }
+            const cur = getCurrentUser();
+            if (cur && cur.id && window.AlsatAPI.isLoggedIn && window.AlsatAPI.isLoggedIn()) {
+                const apiFavs = await window.AlsatAPI.getFavorites(cur.id);
+                if (Array.isArray(apiFavs)) window.favorites = apiFavs;
             }
         } catch (e) { console.warn('Alsat API yüklenemedi:', e); }
     }
@@ -5379,18 +5670,26 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     el('fav-trigger')?.addEventListener('click', function(e) { e.preventDefault(); window.toggleFavDropdown?.(); });
     el('fav-dropdown-all')?.addEventListener('click', function(e) { e.preventDefault(); el('fav-dropdown').style.display = 'none'; openFavoritesPage(); });
-    el('fav-dropdown-list')?.addEventListener('click', function(e) {
+    el('fav-dropdown-list')?.addEventListener('click', async function(e) {
         var btn = e.target.closest('.fav-dropdown-remove');
         if (!btn) return;
         e.stopPropagation();
         var id = parseInt(btn.dataset.id, 10);
-        if (window.favorites && window.favorites.indexOf(id) >= 0) {
-            window.favorites = window.favorites.filter(function(x) { return x !== id; });
-            saveFavorites();
-            updateHeaderUI();
-            renderFavDropdown();
-            showToast('favRemoved', 'info', 1500);
+        if (!window.favorites || window.favorites.indexOf(id) < 0) return;
+        var user = getCurrentUser();
+        if (window.API_BASE && window.AlsatAPI?.isLoggedIn?.() && user) {
+            try {
+                await window.AlsatAPI.removeFavorite(user.id, id);
+            } catch (err) {
+                showToast(err?.error || 'Favoriden kaldırılamadı', 'error', 2000);
+                return;
+            }
         }
+        window.favorites = window.favorites.filter(function(x) { return x !== id; });
+        saveFavorites();
+        updateHeaderUI();
+        renderFavDropdown();
+        showToast('favRemoved', 'info', 1500);
     });
     el('ads-link')?.addEventListener('click', function(e) {
         e.preventDefault();
@@ -5648,6 +5947,15 @@ document.addEventListener('DOMContentLoaded', async function() {
         el('my-ads-page').style.display = 'none';
         window.scrollTo({ top: 0, behavior: 'instant' });
     });
+    el('my-ads-list')?.addEventListener('click', function(e) {
+        const editBtn = e.target.closest('.ad-edit-btn');
+        if (editBtn && editBtn.dataset.id) {
+            e.preventDefault();
+            e.stopPropagation();
+            const id = parseInt(editBtn.dataset.id, 10);
+            if (!isNaN(id) && typeof window.openIlanModalForEdit === 'function') window.openIlanModalForEdit(id);
+        }
+    });
     el('back-stores-btn')?.addEventListener('click', () => {
         el('stores-page').style.display = 'none';
         const from = window.alsatStoreFrom || 'homepage';
@@ -5734,13 +6042,17 @@ document.addEventListener('DOMContentLoaded', async function() {
             window.openLoginModal();
             return;
         }
-        el('ilan-modal').style.display = 'flex';
+        resetAdForm();
+        var m = el('ilan-modal');
+        if (m) { m.style.display = 'flex'; m.classList.add('active'); document.body.style.overflow = 'hidden'; }
     });
 
     el('new-ad-from-profile')?.addEventListener('click', function(e) {
         e.preventDefault();
         el('my-ads-page').style.display = 'none';
-        el('ilan-modal').style.display = 'flex';
+        resetAdForm();
+        var m = el('ilan-modal');
+        if (m) { m.style.display = 'flex'; m.classList.add('active'); document.body.style.overflow = 'hidden'; }
     });
 
     el('support-btn')?.addEventListener('click', function(e) {
@@ -5963,7 +6275,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     });
     el('mobile-action-theme')?.addEventListener('keydown', function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.click(); } });
     mobileTap('mobile-action-support', function() { closeMobileMenu(); (window.openSupportModal || function(){})(); });
-    mobileTap('mobile-action-ilan', function() { closeMobileMenu(); if (!getCurrentUser()) { showToast(t('postAdRequired'), 'warning', 2000); (window.openLoginModal || function(){})(); return; } var m=el('ilan-modal'); if(m) m.style.display='flex'; });
+    mobileTap('mobile-action-ilan', function() { closeMobileMenu(); if (!getCurrentUser()) { showToast(t('postAdRequired'), 'warning', 2000); (window.openLoginModal || function(){})(); return; } if (typeof resetAdForm === 'function') resetAdForm(); var m=el('ilan-modal'); if(m){ m.style.display='flex'; m.classList.add('active'); document.body.style.overflow='hidden'; } });
     mobileTap('mobile-action-login', function() { closeMobileMenu(); (window.openLoginModal || function(){})(); });
     mobileTap('mobile-action-profile', function() { closeMobileMenu(); if (typeof openProfilePage==='function') openProfilePage(); else (window.openProfilePage||function(){})(); });
     mobileTap('mobile-action-admin', function() { closeMobileMenu(); if (isAdmin()) (window.openAdminPage||function(){})(); });
@@ -5971,6 +6283,44 @@ document.addEventListener('DOMContentLoaded', async function() {
     mobileTap('mobile-action-fav', function() { closeMobileMenu(); (window.openFavoritesPage||function(){})(); });
     mobileTap('mobile-action-messages', function() { closeMobileMenu(); (window.openMessagingModal||function(){})(); });
     mobileTap('mobile-action-notif', function() { closeMobileMenu(); (window.openMobileNotifModal||function(){})(); });
+    mobileTap('mobile-push-prompt', function() {
+        closeMobileMenu();
+        if (typeof Notification === 'undefined') return;
+        if (Notification.permission === 'granted') { showToast(t('notificationsAlreadyEnabled') || 'Bildirimler zaten açık', 'info', 2000); updateHeaderUI(); return; }
+        Notification.requestPermission().then(function(p) {
+            if (p === 'granted') {
+                showToast(t('notificationsEnabled') || 'Bildirimler açıldı', 'success', 2000);
+                updateHeaderUI();
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.ready.then(function(reg) {
+                        if (reg.pushManager) {
+                            try {
+                                var vapidKey = window.VAPID_PUBLIC_KEY;
+                                var keyU8 = null;
+                                if (vapidKey) {
+                                    try {
+                                        var pad = '='.repeat((4 - vapidKey.length % 4) % 4);
+                                        var b64 = (vapidKey + pad).replace(/-/g, '+').replace(/_/g, '/');
+                                        var raw = atob(b64);
+                                        keyU8 = new Uint8Array(raw.length);
+                                        for (var i = 0; i < raw.length; i++) keyU8[i] = raw.charCodeAt(i);
+                                    } catch(err) {}
+                                }
+                                reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyU8 }).then(function(sub) {
+                                    if (window.API_BASE && window.AlsatAPI && sub) {
+                                        try { fetch(window.API_BASE + '/api/push/subscribe', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (window.AlsatAPI.getToken?.() || '') }, body: JSON.stringify(sub) }); } catch(e) {}
+                                    }
+                                }).catch(function() {});
+                            } catch(e) {}
+                        }
+                    }).catch(function() {});
+                }
+            } else {
+                showToast(t('notificationsDenied') || 'Bildirimler kapalı', 'info', 2000);
+            }
+            updateHeaderUI();
+        });
+    });
     el('mobile-notif-close')?.addEventListener('click', function() { (window.closeMobileNotifModal || function(){})(); });
     el('mobile-notif-modal')?.addEventListener('click', function(e) { if (e.target === this) (window.closeMobileNotifModal || function(){})(); });
     var mobileLang = el('mobile-lang-select');
@@ -6015,6 +6365,43 @@ document.addEventListener('DOMContentLoaded', async function() {
             if (udb) { udb.phone = user.phone; udb.address = user.address; saveUsersDatabase(); }
             showToast('saved', 'success', 1500);
         }
+    });
+
+    el('change-password-btn')?.addEventListener('click', async function() {
+        const user = getCurrentUser();
+        if (!user) { showToast('loginRequired', 'warning', 2000); return; }
+        const oldPwd = (el('old-password')?.value || '').trim();
+        const newPwd = (el('new-password')?.value || '').trim();
+        const confirmPwd = (el('confirm-new-password')?.value || '').trim();
+        if (!oldPwd) { showToast(t('enterPassword') || 'Mevcut şifrenizi girin', 'warning', 2000); return; }
+        if (!newPwd || newPwd.length < 6) { showToast(t('passwordMin6') || 'Yeni şifre en az 6 karakter olmalı', 'warning', 2000); return; }
+        if (newPwd !== confirmPwd) { showToast(t('passwordsMustMatch') || 'Şifreler eşleşmiyor', 'warning', 2000); return; }
+        if (window.API_BASE && window.AlsatAPI?.changePassword) {
+            try {
+                await window.AlsatAPI.changePassword(oldPwd, newPwd);
+                el('old-password').value = el('new-password').value = el('confirm-new-password').value = '';
+                showToast(t('passwordChanged') || 'Şifre başarıyla değiştirildi', 'success', 2500);
+            } catch (err) {
+                showToast(err?.error || err?.message || 'Şifre değiştirilemedi', 'error', 2500);
+            }
+        } else {
+            showToast(t('passwordResetContact') || 'Şifre değişikliği için destek ile iletişime geçin', 'info', 3000);
+        }
+    });
+
+    el('delete-account-btn')?.addEventListener('click', function() {
+        const user = getCurrentUser();
+        if (!user) return;
+        if (!confirm(t('deleteAccountConfirm') || 'Hesabınız kalıcı olarak silinecek. Bu işlem geri alınamaz. Devam etmek istiyor musunuz?')) return;
+        if (!confirm(t('deleteAccountConfirmLast') || 'Son kez onaylayın: Tüm verileriniz silinecek.')) return;
+        sessionStorage.removeItem('alsat_currentUser');
+        localStorage.removeItem('alsat_currentUser');
+        if (window.API_BASE && window.AlsatAPI?.logout) window.AlsatAPI.logout();
+        window.userSession = window.userSession || {};
+        window.userSession.user = null;
+        updateHeaderUI();
+        showToast(t('accountDeleted') || 'Hesabınız silindi', 'info', 2000);
+        if (typeof showHomepage === 'function') showHomepage();
     });
 
     const loadNotificationSettings = () => {

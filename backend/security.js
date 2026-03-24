@@ -1,36 +1,64 @@
 /**
  * Alsat - Güvenlik Modülü
- * JWT, rate limiting, şifre hash, temel korumalar
+ * JWT, refresh token, rate limiting, brute-force koruması
  */
-require('dotenv').config();
+const config = require('./config');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'alsat-dev-secret-change-in-production';
-const JWT_EXPIRES = process.env.JWT_EXPIRES || '7d';
+const { secret, expires, refreshExpires } = config.jwt;
+const RATE_WINDOW_MS = config.rateLimit.windowMs;
+const RATE_MAX = config.rateLimit.max;
+const MAX_LOGIN_ATTEMPTS = config.login.maxAttempts;
+const LOCKOUT_MS = config.login.lockoutMinutes * 60 * 1000;
 
-// Rate limit: IP bazlı istek sayısı (in-memory)
 const rateLimitMap = new Map();
-const RATE_WINDOW_MS = 60 * 1000; // 1 dakika
-const RATE_MAX = 100; // dakikada max 100 istek
+const loginAttempts = new Map(); // ip -> { count, lockUntil }
+const refreshTokens = new Map(); // tokenHash -> { userId, email, expires }
 
 /**
- * JWT token oluşturur
- * @param {{ id: number, email: string }} user
- * @returns {string} token
+ * JWT access token oluşturur
  */
 function createToken(user) {
   return jwt.sign(
     { id: user.id, email: user.email },
-    JWT_SECRET,
-    { expiresIn: JWT_EXPIRES }
+    secret,
+    { expiresIn: expires }
   );
 }
 
 /**
- * JWT doğrular, req.user set eder
- * Authorization: Bearer <token>
+ * Refresh token oluşturur ve saklar
  */
+function createRefreshToken(user) {
+  const token = crypto.randomBytes(32).toString('hex');
+  const hash = crypto.createHash('sha256').update(token).digest('hex');
+  refreshTokens.set(hash, {
+    userId: user.id,
+    email: user.email,
+    expires: Date.now() + 30 * 24 * 60 * 60 * 1000 // 30 gün
+  });
+  if (refreshTokens.size > 10000) {
+    const keys = [...refreshTokens.keys()].slice(0, 1000);
+    keys.forEach(k => refreshTokens.delete(k));
+  }
+  return token;
+}
+
+/**
+ * Refresh token ile yeni access token alır
+ */
+function refreshAccessToken(refreshToken) {
+  const hash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+  const entry = refreshTokens.get(hash);
+  if (!entry || Date.now() > entry.expires) {
+    refreshTokens.delete(hash);
+    return null;
+  }
+  return createToken({ id: entry.userId, email: entry.email });
+}
+
 function jwtMiddleware(req, res, next) {
   const auth = req.headers.authorization;
   if (!auth || !auth.startsWith('Bearer ')) {
@@ -38,7 +66,7 @@ function jwtMiddleware(req, res, next) {
   }
   const token = auth.slice(7);
   try {
-    const payload = jwt.verify(token, JWT_SECRET);
+    const payload = jwt.verify(token, secret);
     req.user = payload;
     next();
   } catch (e) {
@@ -46,38 +74,24 @@ function jwtMiddleware(req, res, next) {
   }
 }
 
-/**
- * Opsiyonel auth: token varsa req.user set eder, yoksa devam eder
- */
 function optionalAuth(req, res, next) {
   const auth = req.headers.authorization;
-  if (!auth || !auth.startsWith('Bearer ')) {
-    return next();
-  }
+  if (!auth || !auth.startsWith('Bearer ')) return next();
   const token = auth.slice(7);
   try {
-    req.user = jwt.verify(token, JWT_SECRET);
+    req.user = jwt.verify(token, secret);
   } catch (e) { /* ignore */ }
   next();
 }
 
-/**
- * Şifre hash'ler (bcrypt)
- */
 function hashPassword(plain) {
   return bcrypt.hashSync(plain || '', 10);
 }
 
-/**
- * Şifre karşılaştırır
- */
 function comparePassword(plain, hash) {
   return bcrypt.compareSync(plain || '', hash || '');
 }
 
-/**
- * Rate limiting middleware
- */
 function rateLimit(req, res, next) {
   const ip = req.ip || req.connection?.remoteAddress || 'unknown';
   const now = Date.now();
@@ -98,8 +112,34 @@ function rateLimit(req, res, next) {
 }
 
 /**
- * Basit XSS koruması: string'de tehlikeli karakterler var mı
+ * Login brute-force koruması - IP bazlı
+ * Başarılı girişte resetlenir
  */
+function checkLoginLockout(ip) {
+  const entry = loginAttempts.get(ip);
+  if (!entry) return null;
+  if (Date.now() < entry.lockUntil) {
+    const mins = Math.ceil((entry.lockUntil - Date.now()) / 60000);
+    return `Çok fazla başarısız deneme. ${mins} dakika sonra tekrar deneyin.`;
+  }
+  loginAttempts.delete(ip);
+  return null;
+}
+
+function recordLoginFailure(ip) {
+  const entry = loginAttempts.get(ip) || { count: 0 };
+  entry.count++;
+  if (entry.count >= MAX_LOGIN_ATTEMPTS) {
+    entry.lockUntil = Date.now() + LOCKOUT_MS;
+    entry.count = 0;
+  }
+  loginAttempts.set(ip, entry);
+}
+
+function recordLoginSuccess(ip) {
+  loginAttempts.delete(ip);
+}
+
 function sanitizeString(str) {
   if (typeof str !== 'string') return '';
   return str
@@ -111,10 +151,15 @@ function sanitizeString(str) {
 
 module.exports = {
   createToken,
+  createRefreshToken,
+  refreshAccessToken,
   jwtMiddleware,
   optionalAuth,
   hashPassword,
   comparePassword,
   rateLimit,
+  checkLoginLockout,
+  recordLoginFailure,
+  recordLoginSuccess,
   sanitizeString
 };

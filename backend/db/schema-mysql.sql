@@ -38,6 +38,7 @@ CREATE TABLE IF NOT EXISTS ads (
   expiry_at TIMESTAMP NULL,
   featured TINYINT(1) DEFAULT 0,
   urgent TINYINT(1) DEFAULT 0,
+  hide_phone TINYINT(1) DEFAULT 0,
   FOREIGN KEY (user_id) REFERENCES users(id),
   INDEX idx_status (status),
   INDEX idx_category (category),
@@ -52,3 +53,122 @@ CREATE TABLE IF NOT EXISTS favorites (
   FOREIGN KEY (user_id) REFERENCES users(id),
   FOREIGN KEY (ad_id) REFERENCES ads(id)
 );
+
+CREATE TABLE IF NOT EXISTS ad_reports (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  ad_id INT,
+  user_id INT,
+  reason VARCHAR(200),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS search_alerts (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT,
+  query VARCHAR(500),
+  filters JSON,
+  email VARCHAR(255),
+  active TINYINT(1) DEFAULT 1,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS conversations (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  ad_id INT,
+  seller_id INT,
+  buyer_id INT,
+  seller_confirmed TINYINT(1) DEFAULT 0,
+  buyer_confirmed TINYINT(1) DEFAULT 0,
+  rated TINYINT(1) DEFAULT 0,
+  last_msg_time BIGINT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (ad_id) REFERENCES ads(id),
+  FOREIGN KEY (seller_id) REFERENCES users(id),
+  FOREIGN KEY (buyer_id) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS messages (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  conversation_id INT,
+  from_user_id INT,
+  text TEXT,
+  time BIGINT,
+  read_at BIGINT,
+  FOREIGN KEY (conversation_id) REFERENCES conversations(id),
+  FOREIGN KEY (from_user_id) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS price_alerts (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT,
+  ad_id INT,
+  price_at_subscribe DECIMAL(12,2),
+  ad_title VARCHAR(500),
+  notified TINYINT(1) DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY uk_price_alert (user_id, ad_id),
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  FOREIGN KEY (ad_id) REFERENCES ads(id)
+);
+
+CREATE TABLE IF NOT EXISTS ad_drafts (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT,
+  data JSON NOT NULL,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS user_ratings (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  from_user_id INT,
+  to_user_id INT,
+  ad_id INT,
+  conversation_id INT,
+  rating INT CHECK (rating >= 1 AND rating <= 5),
+  comment TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (from_user_id) REFERENCES users(id),
+  FOREIGN KEY (to_user_id) REFERENCES users(id),
+  FOREIGN KEY (ad_id) REFERENCES ads(id),
+  FOREIGN KEY (conversation_id) REFERENCES conversations(id)
+);
+
+CREATE TABLE IF NOT EXISTS popular_searches (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  query VARCHAR(255) NOT NULL,
+  hit_count INT DEFAULT 1,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS phone_views (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  ad_id INT,
+  user_id INT,
+  viewed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (ad_id) REFERENCES ads(id),
+  FOREIGN KEY (user_id) REFERENCES users(id)
+);
+
+CREATE TABLE IF NOT EXISTS active_sessions (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  session_key VARCHAR(100) UNIQUE,
+  user_id INT,
+  ip VARCHAR(50),
+  user_agent TEXT,
+  last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS web_push_subscriptions (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT,
+  endpoint TEXT NOT NULL,
+  p256dh TEXT,
+  auth TEXT,
+  user_agent TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  INDEX idx_web_push_user (user_id)
+);
+
+-- Mevcut veritabanı için: ALTER TABLE ads ADD COLUMN hide_phone TINYINT(1) DEFAULT 0;

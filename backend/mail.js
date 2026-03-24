@@ -45,4 +45,37 @@ function sendVerificationCode(email, code, type) {
   return sendMail(email, subject, html);
 }
 
-module.exports = { sendMail, sendVerificationCode };
+async function sendSearchAlertEmail(email, query, filters, ads) {
+  const q = query || 'Tüm ilanlar';
+  const items = ads.slice(0, 10).map(a => `
+    <div style="padding:12px;border-bottom:1px solid #eee;">
+      <a href="${process.env.SITE_URL || 'https://alsatmk.com'}/#ad=${a.id}" style="color:#6c5ce7;text-decoration:none;font-weight:bold;">${(a.title || '').slice(0, 80)}</a>
+      <p style="margin:4px 0 0;color:#666;font-size:14px;">${a.price || 0} ${a.currency || 'MKD'} · ${a.city || ''}</p>
+    </div>`).join('');
+  const html = `
+    <div style="font-family:sans-serif;max-width:500px;margin:0 auto;">
+      <h2 style="color:#6c5ce7;">Alsat - Arama Kaydı</h2>
+      <p>Aradığınız "<strong>${q}</strong>" ile eşleşen ${ads.length} yeni ilan bulundu:</p>
+      ${items}
+      <p style="margin-top:16px;"><a href="${process.env.SITE_URL || 'https://alsatmk.com'}" style="color:#6c5ce7;">Tüm ilanları gör →</a></p>
+      <hr style="border:none;border-top:1px solid #eee;margin-top:24px;">
+      <p style="color:#999;font-size:12px;">Arama kaydınızı profilinizden kaldırabilirsiniz.</p>
+    </div>`;
+  return sendMail(email, 'Alsat - Yeni ilanlar eklendi', html);
+}
+
+async function sendPriceDropEmail(email, adTitle, oldPrice, newPrice, currency, adId) {
+  const html = `
+    <div style="font-family:sans-serif;max-width:500px;margin:0 auto;">
+      <h2 style="color:#6c5ce7;">Alsat - Fiyat Düştü!</h2>
+      <p>Takip ettiğiniz ilanın fiyatı düştü:</p>
+      <p style="font-size:18px;font-weight:bold;">${(adTitle || '').slice(0, 100)}</p>
+      <p style="font-size:24px;color:#e53935;">${oldPrice} ${currency} → <strong>${newPrice} ${currency}</strong></p>
+      <p><a href="${process.env.SITE_URL || 'https://alsatmk.com'}/#ad=${adId}" style="background:#6c5ce7;color:white;padding:12px 24px;text-decoration:none;border-radius:8px;display:inline-block;">İlanı Gör →</a></p>
+      <hr style="border:none;border-top:1px solid #eee;margin-top:24px;">
+      <p style="color:#999;font-size:12px;">Fiyat takibini profilinizden kaldırabilirsiniz.</p>
+    </div>`;
+  return sendMail(email, 'Alsat - Fiyat düştü: ' + (adTitle || '').slice(0, 50), html);
+}
+
+module.exports = { sendMail, sendVerificationCode, sendSearchAlertEmail, sendPriceDropEmail };
