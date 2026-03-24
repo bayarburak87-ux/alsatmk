@@ -11,6 +11,7 @@ function t(key, subKey) {
     if (subKey && tr[key]) return tr[key][subKey] ?? tr[key]?.[subKey] ?? key;
     return tr[key] ?? key;
 }
+window.t = t;
 function tCity(cityKey) {
     if (!cityKey) return '';
     const tr = window.TRANSLATIONS?.[window.currentLang]?.cities;
@@ -5313,7 +5314,7 @@ el('signup-formu')?.addEventListener('submit', async function(e) {
                 if (codeStep) codeStep.style.display = 'none';
                 if (codeInput) codeInput.value = '';
                 var btn = el('signup-send-code-btn');
-                if (btn) { btn.disabled = false; var t = btn.querySelector('#signup-send-code-txt'); if (t) t.textContent = t('sendCodeBtn') || 'Doğrulama Kodu Gönder'; }
+                if (btn) { btn.disabled = false; var txtEl = btn.querySelector('#signup-send-code-txt'); if (txtEl) txtEl.textContent = (typeof window.t === 'function' ? window.t('sendCodeBtn') : 'Doğrulama Kodu Gönder'); }
                 showToast('signupSuccess', 'success', 2000);
                 this.reset();
             }
@@ -5340,7 +5341,7 @@ el('switch-signup')?.addEventListener('click', function(e) {
     const codeStep = el('signup-code-step');
     if (codeStep) codeStep.style.display = 'none';
     const sendBtn = el('signup-send-code-btn');
-    if (sendBtn) { sendBtn.disabled = false; const t = sendBtn.querySelector('#signup-send-code-txt'); if (t) t.textContent = t('sendCodeBtn') || 'Doğrulama Kodu Gönder'; }
+    if (sendBtn) { sendBtn.disabled = false; var txtEl = sendBtn.querySelector('#signup-send-code-txt'); if (txtEl) txtEl.textContent = (typeof window.t === 'function' ? window.t('sendCodeBtn') : 'Doğrulama Kodu Gönder'); }
     if (sendBtn && (window.API_BASE || (location.protocol && location.host))) sendBtn.style.display = '';
 });
 
