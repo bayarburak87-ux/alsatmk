@@ -96,6 +96,11 @@ app.use('/api', (req, res, next) => {
   next();
 });
 
+// API ana sayfa (localhost:3001 açıldığında)
+app.get('/', (req, res) => {
+  res.json({ message: 'Alsat API çalışıyor', docs: '/api-docs', health: '/api/health' });
+});
+
 // Ping endpoint - frontend periyodik çağırır (online sayım için)
 app.get('/api/ping', (req, res) => {
   res.json({ ok: true, ts: Date.now() });
@@ -992,9 +997,29 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, { explorer: t
 app.use(notFound);
 app.use(errorHandler);
 
+async function seedAdminIfEmpty() {
+  try {
+    const { sql: s, params: p } = paramStyle('SELECT COUNT(*) as c FROM users', []);
+    const row = await db.getAsync(s, p);
+    if (row && Number(row.c || row.C) > 0) return;
+    const seedEmail = (process.env.SMTP_USER || config.admin.email || 'info@alsatmk.com').toLowerCase();
+    const hash = hashPassword(process.env.SEED_PASSWORD || 'alsat123');
+    const now = new Date().toISOString();
+    const { sql: ins, params: pin } = paramStyle(
+      'INSERT INTO users (email, name, password_hash, created_at) VALUES (?, ?, ?, ?)',
+      [seedEmail, 'Admin', hash, now]
+    );
+    await db.runAsync(ins, pin);
+    logger.info(`İlk kullanıcı oluşturuldu: ${seedEmail} - Giriş: alsat123 veya şifre sıfırlama kullanın`);
+  } catch (e) {
+    logger.warn('Seed hatası:', e.message);
+  }
+}
+
 if (require.main === module) {
-  app.listen(config.port, () => {
+  const server = app.listen(config.port, async () => {
     logger.info(`Alsat API: http://localhost:${config.port} | DB: ${driver}`);
+    await seedAdminIfEmpty();
   });
 }
 
