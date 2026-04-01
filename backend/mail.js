@@ -1,38 +1,75 @@
 /**
  * E-posta gönderimi - info@alsatmk.com (nodemailer)
  * .env: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS
+ * Gmail uygulama şifreleri genelde boşluklu verilir; boşluklar otomatik temizlenir.
  */
 const nodemailer = require('nodemailer');
+const config = require('./config');
 
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.gmail.com',
-  port: parseInt(process.env.SMTP_PORT || '587', 10),
-  secure: process.env.SMTP_SECURE === 'true',
-  auth: {
-    user: process.env.SMTP_USER || 'info@alsatmk.com',
-    pass: process.env.SMTP_PASS || ''
-  }
-});
+function smtpPassRaw() {
+  return (process.env.SMTP_PASS || '').replace(/\s+/g, '');
+}
+
+function createTransport() {
+  const port = parseInt(process.env.SMTP_PORT || '587', 10);
+  const pass = smtpPassRaw();
+  return nodemailer.createTransport({
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port,
+    secure: process.env.SMTP_SECURE === 'true',
+    requireTLS: port === 587 && process.env.SMTP_SECURE !== 'true',
+    connectionTimeout: 20000,
+    greetingTimeout: 20000,
+    auth: pass
+      ? {
+          user: process.env.SMTP_USER || 'info@alsatmk.com',
+          pass
+        }
+      : undefined
+  });
+}
 
 const FROM = process.env.MAIL_FROM || '"Alsat" <info@alsatmk.com>';
 
 async function sendMail(to, subject, html) {
-  if (!process.env.SMTP_PASS) {
+  const pass = smtpPassRaw();
+  if (!pass) {
+    if (config.isDev) {
+      console.warn('[mail DEV] SMTP_PASS yok — e-posta gönderilmedi:', { to, subject });
+      return { ok: true, messageId: 'dev-no-smtp' };
+    }
     console.error('SMTP_PASS tanımlı değil - e-posta gönderilemiyor. .env dosyasına SMTP ayarlarını ekleyin.');
     const err = new Error('E-posta servisi yapılandırılmamış. Lütfen daha sonra tekrar deneyin.');
     err.code = 'SMTP_NOT_CONFIGURED';
     throw err;
   }
-  const info = await transporter.sendMail({
-    from: FROM,
-    to,
-    subject,
-    html
-  });
-  return { ok: true, messageId: info.messageId };
+  const transporter = createTransport();
+  try {
+    const info = await transporter.sendMail({
+      from: FROM,
+      to,
+      subject,
+      html
+    });
+    return { ok: true, messageId: info.messageId };
+  } catch (e) {
+    const err = new Error(
+      e.code === 'EAUTH' || /Invalid login|authentication failed/i.test(String(e.message || ''))
+        ? 'SMTP girişi başarısız. Gmail için Uygulama şifresi kullandığınızdan ve SMTP_USER / SMTP_PASS değerlerinin doğru olduğundan emin olun.'
+        : 'E-posta gönderilemedi: ' + (e.message || 'bilinmeyen hata')
+    );
+    err.code = 'SMTP_SEND_FAILED';
+    err.status = 503;
+    err.cause = e;
+    throw err;
+  }
 }
 
 function sendVerificationCode(email, code, type) {
+  if (!smtpPassRaw() && config.isDev) {
+    console.warn(`[mail DEV] Doğrulama (${type}) → ${email}: kod = ${code} (SMTP_PASS yoksa bu kodla devam edin; yayında .env doldurun)`);
+    return Promise.resolve({ ok: true, messageId: 'dev-code-logged' });
+  }
   const isRegister = type === 'register';
   const subject = isRegister ? 'Alsat - Kayıt Doğrulama Kodu' : 'Alsat - Şifre Sıfırlama Kodu';
   const html = `
