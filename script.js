@@ -1840,18 +1840,31 @@ function renderAdminAds() {
     updateBulk();
 }
 
-function adminBulkDeleteAds() {
+async function adminBulkDeleteAds() {
     if (!isAdmin()) return;
-    const ids = [...document.querySelectorAll('.admin-ad-cb:checked')].map(cb => parseInt(cb.dataset.id)).filter(Boolean);
+    const ids = [...document.querySelectorAll('.admin-ad-cb:checked')].map(cb => parseInt(cb.dataset.id, 10)).filter(Boolean);
     if (ids.length === 0) return;
     if (!confirm(ids.length + ' ilan silinecek. Devam?')) return;
-    ids.forEach(id => {
-        const ad = window.adsDatabase.find(a => a.id === id);
+
+    let idsRemoved = ids;
+    if (window.API_BASE && window.AlsatAPI?.adminDeleteAd && window.AlsatAPI.isLoggedIn?.()) {
+        const settled = await Promise.allSettled(ids.map((adId) => window.AlsatAPI.adminDeleteAd(adId)));
+        const failed = settled.filter((r) => r.status === 'rejected');
+        if (failed.length) {
+            showToast(failed.length + ' ilan sunucuda silinemedi. Ağ sekmesini kontrol edin.', 'error', 3500);
+        }
+        idsRemoved = ids.filter((_, i) => settled[i].status === 'fulfilled');
+        if (idsRemoved.length === 0) return;
+    }
+
+    idsRemoved.forEach((id) => {
+        const ad = window.adsDatabase.find((a) => Number(a.id) === id);
         if (ad?.userId) addNotification(ad.userId, 'ad_deleted', 'İlan silindi', '"' + ad.title + '" ilanınız yönetici tarafından kaldırıldı.', { adId: id });
-        window.adsDatabase = window.adsDatabase.filter(a => a.id !== id);
     });
+    const idSet = new Set(idsRemoved.map(Number));
+    window.adsDatabase = window.adsDatabase.filter((a) => !idSet.has(Number(a.id)));
     saveAdsDatabase();
-    window.favorites = (window.favorites || []).filter(id => !ids.includes(id));
+    window.favorites = (window.favorites || []).filter((fid) => !idSet.has(Number(fid)));
     saveFavorites();
     renderAdminAds();
     applyFilters();
@@ -1993,18 +2006,29 @@ function loadAdminSettings() {
     const mc = el('adm-seller-msg-confirm'); if (mc) mc.value = s.sellerAppMsgConfirm || '';
 }
 
-window.adminDeleteAd = function(id) {
+window.adminDeleteAd = async function(id) {
     if (!isAdmin()) return;
     if (!confirm('Bu ilanı silmek istediğinize emin misiniz?')) return;
-    const idx = window.adsDatabase.findIndex(a => a.id === id);
+    const numId = parseInt(id, 10);
+    if (isNaN(numId)) return;
+    if (window.API_BASE && window.AlsatAPI?.adminDeleteAd && window.AlsatAPI.isLoggedIn?.()) {
+        try {
+            await window.AlsatAPI.adminDeleteAd(numId);
+        } catch (e) {
+            showToast((e && e.error) || e?.message || 'İlan sunucuda silinemedi', 'error', 2500);
+            return;
+        }
+    }
+    const idx = window.adsDatabase.findIndex(a => Number(a.id) === numId);
     if (idx >= 0) {
         const ad = window.adsDatabase[idx];
         const ownerId = ad.userId;
         window.adsDatabase.splice(idx, 1);
-        const favIdx = window.favorites.indexOf(id);
+        let favIdx = window.favorites.indexOf(numId);
+        if (favIdx < 0) favIdx = window.favorites.indexOf(id);
         if (favIdx >= 0) { window.favorites.splice(favIdx, 1); saveFavorites(); }
-        if (ownerId) addNotification(ownerId, 'ad_deleted', 'İlan silindi', '"' + ad.title + '" ilanınız yönetici tarafından kaldırıldı.', { adId: id });
-        addAdminAudit('ad_deleted', 'İlan #' + id + ' silindi: ' + (ad.title||'').slice(0,40));
+        if (ownerId) addNotification(ownerId, 'ad_deleted', 'İlan silindi', '"' + ad.title + '" ilanınız yönetici tarafından kaldırıldı.', { adId: numId });
+        addAdminAudit('ad_deleted', 'İlan #' + numId + ' silindi: ' + (ad.title||'').slice(0,40));
         saveAdsDatabase();
         updateAdminStats();
         renderAdminAds();
