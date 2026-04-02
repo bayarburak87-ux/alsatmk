@@ -1546,6 +1546,26 @@ function renderAdminPending() {
     if (!isAdmin()) return;
     const list = el('admin-pending-list');
     if (!list) return;
+    // API modunda (Railway) ilanlar backend'de; admin paneli güncel veriyi çekmeden bekleyenleri göremez.
+    if (window.API_BASE && window.AlsatAPI && typeof window.AlsatAPI.fetchAdsFull === 'function') {
+        if (!window.__adminAdsRefreshing) {
+            window.__adminAdsRefreshing = true;
+            list.innerHTML = '<p class="admin-empty">Yükleniyor...</p>';
+            Promise.resolve()
+                .then(() => window.AlsatAPI.fetchAdsFull())
+                .then((ads) => {
+                    window.adsDatabase = window.AlsatAPI.normalizeAds(Array.isArray(ads) ? ads : []);
+                    saveAdsDatabase();
+                    updateAdminStats();
+                })
+                .catch(() => {})
+                .finally(() => {
+                    window.__adminAdsRefreshing = false;
+                    renderAdminPending();
+                });
+            return;
+        }
+    }
     const pending = (window.adsDatabase || []).filter(a => (a.status || '') === 'pending').sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
     if (pending.length === 0) {
         list.innerHTML = '<p class="admin-empty">' + t('noPendingAds') + '</p>';
