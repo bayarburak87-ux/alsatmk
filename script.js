@@ -994,11 +994,23 @@ function setCurrentUser(user, remember) {
 
 /**
  * API modunda JWT varken oturum nesnesi (sessionStorage) silinmiş olabilir; /api/auth/me ile doldurur.
+ * Ayrıca: ekranda "girişli" görünüp alsat_token yoksa (eski oturum / süresi dolmuş JWT) kalan sahte kullanıcıyı temizler;
+ * aksi halde ilan verirken önce ensureLoggedInUser geçer, sonra isLoggedIn() false kalıp "Giriş yapınız" çıkıyordu.
  */
 async function ensureLoggedInUser() {
+    if (!window.API_BASE || !window.AlsatAPI || typeof window.AlsatAPI.isLoggedIn !== 'function') {
+        return getCurrentUser();
+    }
     let u = getCurrentUser();
+    if (u && !window.AlsatAPI.isLoggedIn()) {
+        sessionStorage.removeItem('alsat_currentUser');
+        localStorage.removeItem('alsat_currentUser');
+        if (window.userSession) window.userSession.user = null;
+        u = null;
+        if (typeof updateHeaderUI === 'function') updateHeaderUI();
+    }
     if (u) return u;
-    if (window.API_BASE && window.AlsatAPI && typeof window.AlsatAPI.isLoggedIn === 'function' && window.AlsatAPI.isLoggedIn()) {
+    if (window.AlsatAPI.isLoggedIn()) {
         try {
             const me = await window.AlsatAPI.me();
             if (me && me.id) {
