@@ -223,7 +223,9 @@ app.post('/api/ads', jwtMiddleware, createAdRules, handleValidation, async (req,
     const expiryAt = expiry.toISOString().slice(0, 10);
     const insertCols = 'user_id, title, price, currency, category, sub_category, city, district, description, images, attrs, condition, seller_type, status, accept_trade, price_history, created_at, expiry_at';
     const insertVals = '?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?';
-    const insertParams = [userId, d.title, d.price, d.currency || 'MKD', d.category, d.subCategory || '', d.city, d.district || '', d.description || '', images, attrs, d.condition || 'İkinci El', d.sellerType || 'Sahibinden', d.status || 'pending', d.acceptTrade ? 1 : 0, priceHistory, createdAt, expiryAt];
+    // Varsayılan doğrudan yayın; moderasyon için Railway'de ADS_DEFAULT_STATUS=pending
+    const newAdStatus = String(process.env.ADS_DEFAULT_STATUS || 'approved').toLowerCase() === 'pending' ? 'pending' : 'approved';
+    const insertParams = [userId, d.title, d.price, d.currency || 'MKD', d.category, d.subCategory || '', d.city, d.district || '', d.description || '', images, attrs, d.condition || 'İkinci El', d.sellerType || 'Sahibinden', newAdStatus, d.acceptTrade ? 1 : 0, priceHistory, createdAt, expiryAt];
     let insertSql = `INSERT INTO ads (${insertCols}) VALUES (${insertVals})`;
     if (driver === 'postgres') insertSql += ' RETURNING id';
     const { sql: s, params: p } = paramStyle(insertSql, insertParams);

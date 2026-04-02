@@ -578,7 +578,7 @@ const DEFAULT_SITE_SETTINGS = {
     extendedAdDays: 60,
     whatsappNumber: '+38970000000',
     viberNumber: '+38970000000',
-    adRequiresApproval: true,
+    adRequiresApproval: false,
     sellerAppMsgIntro: '',
     sellerAppMsgConfirm: ''
 };
@@ -1120,10 +1120,12 @@ window.openAdminPage = function() {
 
 let __adminRealtimeTimer = null;
 let __adminRealtimeInFlight = false;
+const ADMIN_SYNC_MS = 60000;
 function startAdminRealtimeSync() {
     if (__adminRealtimeTimer) return;
     const tick = async () => {
         if (__adminRealtimeInFlight) return;
+        if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
         if (!isAdmin() || el('admin-page')?.style.display !== 'block') return;
         if (!window.API_BASE || !window.AlsatAPI) return; // local mod: localStorage
         __adminRealtimeInFlight = true;
@@ -1174,7 +1176,12 @@ function startAdminRealtimeSync() {
         }
     };
     tick();
-    __adminRealtimeTimer = setInterval(tick, 5000);
+    __adminRealtimeTimer = setInterval(tick, ADMIN_SYNC_MS);
+    if (typeof document !== 'undefined') {
+        document.addEventListener('visibilitychange', function adminVis() {
+            if (document.visibilityState === 'visible' && isAdmin() && el('admin-page')?.style.display === 'block') tick();
+        });
+    }
 }
 
 function stopAdminRealtimeSync() {
@@ -1624,26 +1631,6 @@ function renderAdminPending() {
     if (!isAdmin()) return;
     const list = el('admin-pending-list');
     if (!list) return;
-    // API modunda (Railway) ilanlar backend'de; admin paneli güncel veriyi çekmeden bekleyenleri göremez.
-    if (window.API_BASE && window.AlsatAPI && typeof window.AlsatAPI.fetchAdsFull === 'function') {
-        if (!window.__adminAdsRefreshing) {
-            window.__adminAdsRefreshing = true;
-            list.innerHTML = '<p class="admin-empty">Yükleniyor...</p>';
-            Promise.resolve()
-                .then(() => window.AlsatAPI.fetchAdsFull())
-                .then((ads) => {
-                    window.adsDatabase = window.AlsatAPI.normalizeAds(Array.isArray(ads) ? ads : []);
-                    saveAdsDatabase();
-                    updateAdminStats();
-                })
-                .catch(() => {})
-                .finally(() => {
-                    window.__adminAdsRefreshing = false;
-                    renderAdminPending();
-                });
-            return;
-        }
-    }
     const pending = (window.adsDatabase || []).filter(a => (a.status || '') === 'pending').sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
     if (pending.length === 0) {
         list.innerHTML = '<p class="admin-empty">' + t('noPendingAds') + '</p>';
@@ -2940,7 +2927,7 @@ function adToCardHtml(ad) {
     const titleClass = ad.boldTitle ? 'ilan-baslik-kalin' : '';
     const desc = (ad.description || '').replace(/<[^>]*>/g, '').trim();
     const descShort = desc ? escapeHtml(desc).slice(0, 90) + (desc.length > 90 ? '...' : '') : '';
-    return `<div class="ilan-kart" data-id="${ad.id}">
+    return `<div class="ilan-kart" data-id="${ad.id}" data-ad-id="${ad.id}">
         <div class="resim-alani">
             ${urgentBadge}${fastSellerBadge}${ratingBadge}
             <img src="${imgSrc}" alt="${ad.title}" loading="lazy">
@@ -3123,6 +3110,12 @@ function getSimilarAdsHtml(ad) {
 }
 
 // ========== İLAN DETAY ==========
+function findAdByIdInDatabase(adId) {
+    const n = parseInt(adId, 10);
+    if (!n) return null;
+    return (window.adsDatabase || []).find(a => Number(a.id) === n) || null;
+}
+
 function updateOgMetaForAd(ad) {
     if (!ad) return;
     const url = location.origin + location.pathname + '#ad=' + ad.id;
@@ -3135,18 +3128,44 @@ function updateOgMetaForAd(ad) {
 }
 
 window.ilanDetayAc = function (adId) {
-    const ad = window.adsDatabase.find(a => a.id === adId);
-    if (!ad) return;
-    updateOgMetaForAd(ad);
-    window.recentlyViewed = window.recentlyViewed || [];
-    const prevEntry = window.recentlyViewed.find(x => (x.id || x) === adId);
-    const lastViewedAgo = prevEntry && (prevEntry.viewedAt || prevEntry.viewedAt === 0) ? getTimeAgo(prevEntry.viewedAt) : '';
-    const now = new Date().toISOString();
-    window.recentlyViewed = [{ id: adId, viewedAt: now }, ...window.recentlyViewed.map(x => typeof x === 'object' ? x : { id: x, viewedAt: now }).filter(x => (x.id || x) !== adId)].slice(0, 20);
-    saveRecentlyViewed();
-    ad.views = (ad.views || 0) + 1;
-    ad.clicks = (ad.clicks || 0) + 1;
-    saveAdsDatabase();
+    const id = parseInt(adId, 10);
+    if (!id) return;
+    (async function () {
+        let ad = findAdByIdInDatabase(id);
+        let skipLocalViewBump = false;
+        if (!ad && window.API_BASE && window.AlsatAPI && typeof window.AlsatAPI.fetchAdById === 'function') {
+            try {
+                const row = await window.AlsatAPI.fetchAdById(id);
+                if (row) {
+                    const norm = window.AlsatAPI.normalizeAds([row])[0];
+                    if (norm) {
+                        skipLocalViewBump = true;
+                        const list = window.adsDatabase || [];
+                        const ix = list.findIndex(a => Number(a.id) === id);
+                        if (ix >= 0) list[ix] = norm;
+                        else window.adsDatabase = list.concat([norm]);
+                        saveAdsDatabase();
+                        ad = norm;
+                    }
+                }
+            } catch (e) { console.warn('fetchAdById', e); }
+        }
+        if (!ad) {
+            showToast(t('noAdsFound') || 'İlan bulunamadı', 'warning', 2500);
+            return;
+        }
+        updateOgMetaForAd(ad);
+        window.recentlyViewed = window.recentlyViewed || [];
+        const prevEntry = window.recentlyViewed.find(x => Number(x.id || x) === id);
+        const lastViewedAgo = prevEntry && (prevEntry.viewedAt || prevEntry.viewedAt === 0) ? getTimeAgo(prevEntry.viewedAt) : '';
+        const now = new Date().toISOString();
+        window.recentlyViewed = [{ id: id, viewedAt: now }, ...window.recentlyViewed.map(x => typeof x === 'object' ? x : { id: x, viewedAt: now }).filter(x => Number(x.id || x) !== id)].slice(0, 20);
+        saveRecentlyViewed();
+        if (!skipLocalViewBump) {
+            ad.views = (ad.views || 0) + 1;
+            ad.clicks = (ad.clicks || 0) + 1;
+            saveAdsDatabase();
+        }
     const imgs = ad.images && ad.images.length ? ad.images : [ad.image];
     const hasVideo = !!ad.video;
     const videoEl = hasVideo ? `<video class="detail-main-media detail-video" src="${ad.video}" controls style="${imgs.length ? 'display:none' : ''}" onclick="event.stopPropagation()"></video>` : '';
@@ -3240,6 +3259,7 @@ window.ilanDetayAc = function (adId) {
             }
         };
     }
+    })();
 };
 
 window.openDetailMediaLightbox = function(sources, index, type) {
@@ -3306,7 +3326,7 @@ window.openReportModal = function (adId) {
         window.openLoginModal();
         return;
     }
-    const ad = window.adsDatabase.find(a => a.id === adId);
+    const ad = findAdByIdInDatabase(adId);
     if (!ad) return;
     const reasons = [
         { key: 'spam', label: t('reportSpam') },
@@ -3346,7 +3366,7 @@ function hasPriceAlert(adId) {
 window.togglePriceAlert = function (adId) {
     const u = getCurrentUser();
     if (!u) { showToast('loginRequired', 'warning', 2000); window.openLoginModal(); return; }
-    const ad = window.adsDatabase.find(a => a.id === adId);
+    const ad = findAdByIdInDatabase(adId);
     if (!ad) return;
     const priceEur = priceToEur(ad.price, ad.currency);
     window.priceAlerts = window.priceAlerts || [];
@@ -3368,7 +3388,7 @@ window.togglePriceAlert = function (adId) {
 };
 
 window.shareAdViaWhatsApp = function(adId) {
-    const ad = window.adsDatabase?.find(a => a.id === adId);
+    const ad = findAdByIdInDatabase(adId);
     if (!ad) return;
     const url = location.origin + location.pathname + '#ad=' + adId;
     const text = encodeURIComponent(ad.title + ' - ' + formatPrice(ad) + '\n' + url);
@@ -3390,20 +3410,20 @@ window.copyAdLink = function(adId) {
     navigator.clipboard?.writeText(url).then(() => showToast('linkCopied', 'success', 1500));
 };
 window.shareAdViaFacebook = function(adId) {
-    const ad = window.adsDatabase?.find(a => a.id === adId);
+    const ad = findAdByIdInDatabase(adId);
     if (!ad) return;
     const url = encodeURIComponent(location.origin + location.pathname + '#ad=' + adId);
     window.open('https://www.facebook.com/sharer/sharer.php?u=' + url, '_blank', 'width=600,height=400');
 };
 window.shareAdViaTwitter = function(adId) {
-    const ad = window.adsDatabase?.find(a => a.id === adId);
+    const ad = findAdByIdInDatabase(adId);
     if (!ad) return;
     const text = encodeURIComponent(ad.title + ' - ' + formatPrice(ad));
     const url = encodeURIComponent(location.origin + location.pathname + '#ad=' + adId);
     window.open('https://twitter.com/intent/tweet?text=' + text + '&url=' + url, '_blank', 'width=600,height=400');
 };
 window.shareAdViaQR = function(adId) {
-    const ad = window.adsDatabase?.find(a => a.id === adId);
+    const ad = findAdByIdInDatabase(adId);
     if (!ad) return;
     const url = location.origin + location.pathname + '#ad=' + adId;
     const qrUrl = 'https://api.qrserver.com/v1/create-qr-code/?size=256x256&data=' + encodeURIComponent(url);
@@ -3424,7 +3444,7 @@ window.submitReport = async function (adId) {
     if (!user) return;
     const reason = (el('report-reason')?.value) || 'other';
     const note = (el('report-note')?.value || '').trim();
-    const ad = window.adsDatabase.find(a => a.id === adId);
+    const ad = findAdByIdInDatabase(adId);
     if (!ad) return;
     if (window.API_BASE && window.AlsatAPI && window.AlsatAPI.isLoggedIn && window.AlsatAPI.isLoggedIn()) {
         try {
@@ -4362,7 +4382,7 @@ window.openFavoritesPage = async function () {
             const desc = (ad.description || '').replace(/<[^>]*>/g, '').trim();
             const descShort = desc ? escapeHtml(desc).slice(0, 90) + (desc.length > 90 ? '...' : '') : '';
             return `
-            <div class="ilan-kart" data-id="${ad.id}">
+            <div class="ilan-kart" data-id="${ad.id}" data-ad-id="${ad.id}">
                 <div class="resim-alani"><img src="${imgSrc}" alt="${ad.title}"></div>
                 <div class="ilan-bilgi">
                     <h4>${escapeHtml(ad.title)}</h4>
@@ -5341,12 +5361,30 @@ el('ilan-formu')?.addEventListener('submit', async function(e) {
         showToast('adEdited', 'success', 2000);
     } else {
         if (window.API_BASE && window.AlsatAPI) {
+            if (!window.AlsatAPI.isLoggedIn || !window.AlsatAPI.isLoggedIn()) {
+                showToast('loginRequired', 'warning', 2000);
+                this.reset();
+                return;
+            }
             try {
                 const apiId = await window.AlsatAPI.createAd(adData);
-                if (apiId) adData.id = apiId;
-            } catch (err) { console.warn('API ilan oluşturma hatası:', err); }
+                if (!apiId) throw new Error('İlan ID alınamadı');
+                adData.id = apiId;
+                adData.status = getSiteSettings().adRequiresApproval ? 'pending' : 'approved';
+                const rows = await window.AlsatAPI.fetchAdsFull();
+                if (Array.isArray(rows)) {
+                    window.adsDatabase = window.AlsatAPI.normalizeAds(rows);
+                    saveAdsDatabase();
+                } else {
+                    window.adsDatabase.push(adData);
+                }
+            } catch (err) {
+                showToast(err?.error || err?.message || (t('codeSendFailed') || 'İlan sunucuya kaydedilemedi. Giriş yapıp tekrar deneyin.'), 'error', 3500);
+                return;
+            }
+        } else {
+            window.adsDatabase.push(adData);
         }
-        window.adsDatabase.push(adData);
         if (adData.status === 'approved') checkSearchAlerts();
         const msg = getSiteSettings().adRequiresApproval ? (t('adPendingApproval') || 'İlanınız yönetici onayına gönderildi.') : (t('adPublished') || 'İlan yayınlandı');
         showToast(getSiteSettings().adRequiresApproval ? 'adPendingApproval' : 'adPublished', 'success', 2000);
@@ -5630,12 +5668,17 @@ document.addEventListener('DOMContentLoaded', async function() {
             else { (window.showToast||function(){})(typeof window.t==='function'?t('postAdRequired'):'Giriş yapınız','warning',2000); (window.openLoginModal||function(){})(); }
             return;
         }
-        var adCard = t.closest && (t.closest('.ilan-kart[data-ad-id]') || t.closest('.homepage-new-ad-card[data-ad-id]') || (t.closest('.recent-ad-card') && !t.closest('.recent-ad-remove, .recent-ad-fav, .recent-ad-compare')));
-        if (adCard && adCard.dataset && adCard.dataset.adId) {
-            e.preventDefault();
-            var id = parseInt(adCard.dataset.adId, 10);
-            if (id && window.ilanDetayAc) window.ilanDetayAc(id);
-            return;
+        var adCard = t.closest && (t.closest('.ilan-kart[data-ad-id]') || t.closest('.ilan-kart[data-id]') || t.closest('.homepage-new-ad-card[data-ad-id]') || (t.closest('.recent-ad-card') && !t.closest('.recent-ad-remove, .recent-ad-fav, .recent-ad-compare')));
+        if (adCard && adCard.dataset) {
+            if (e.target.closest('.fav-btn-container') || e.target.closest('.mesaj-gonder-btn') || e.target.closest('.share-btn-container') || e.target.closest('.compare-btn-container')) return;
+            var rawId = adCard.dataset.adId || adCard.dataset.id;
+            if (rawId && !adCard.classList.contains('favorites-store-card')) {
+                e.preventDefault();
+                e.stopPropagation();
+                var id = parseInt(rawId, 10);
+                if (id && window.ilanDetayAc) window.ilanDetayAc(id);
+                return;
+            }
         }
     }, true);
 
@@ -5815,18 +5858,28 @@ document.addEventListener('DOMContentLoaded', async function() {
         navigator.serviceWorker.register('./sw.js').catch(function() {});
     }
     */
-    const hash = location.hash;
-    const m = hash && hash.match(/^#ad=(\d+)/);
-    if (m) { showListingPage(); setTimeout(() => window.ilanDetayAc(parseInt(m[1])), 300); }
-    if (hash === '#admin' && typeof openAdminPage === 'function') {
-        setTimeout(function() { if (isAdmin()) openAdminPage(); else showToast('Yetkiniz yok', 'warning', 2000); }, 100);
+    function applyHashDeepLink() {
+        const h = location.hash || '';
+        if (h === '#admin' && typeof openAdminPage === 'function') {
+            setTimeout(function() { if (isAdmin()) openAdminPage(); else showToast('Yetkiniz yok', 'warning', 2000); }, 80);
+            return;
+        }
+        const m = h.match(/^#ad=(\d+)/);
+        if (m) {
+            showListingPage();
+            setTimeout(function() { window.ilanDetayAc(parseInt(m[1], 10)); }, 80);
+        }
     }
+    applyHashDeepLink();
     if (location.search.indexOf('admin=1') >= 0 && getCurrentUser()) {
         localStorage.setItem('alsat_admin_ok', '1');
         if (typeof updateHeaderUI === 'function') updateHeaderUI();
         if (typeof openAdminPage === 'function') setTimeout(openAdminPage, 100);
     }
-    window.addEventListener('hashchange', function() { if (location.hash === '#admin' && isAdmin()) openAdminPage(); });
+    window.addEventListener('hashchange', function() {
+        if (location.hash === '#admin' && isAdmin()) { openAdminPage(); return; }
+        applyHashDeepLink();
+    });
 
     // Profile button - open dropdown
     el('profile-button')?.addEventListener('click', function(e) {

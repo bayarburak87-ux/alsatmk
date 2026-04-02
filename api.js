@@ -102,6 +102,16 @@
       } catch (e) { return null; }
     },
 
+    /** Tek ilan (paylaşım linki / ads-full dışı kalan id'ler için). GET /api/ads/:id — görüntülenme sunucuda artar. */
+    async fetchAdById(adId) {
+      if (!base()) return null;
+      try {
+        return await fetchJson(base() + '/api/ads/' + encodeURIComponent(adId));
+      } catch (e) {
+        return null;
+      }
+    },
+
     async fetchAdminAds(status) {
       if (!base()) return null;
       try {
@@ -449,7 +459,7 @@
     normalizeAds(rows) {
       if (!Array.isArray(rows)) return [];
       return rows.map(r => ({
-        id: r.id,
+        id: r.id != null ? Number(r.id) || r.id : r.id,
         userId: r.user_id,
         title: r.title,
         price: r.price,
@@ -464,7 +474,7 @@
         attrs: r.attrs && typeof r.attrs === 'object' ? r.attrs : (r.attrs ? JSON.parse(r.attrs || '{}') : {}),
         condition: r.condition || 'İkinci El',
         sellerType: r.seller_type || 'Sahibinden',
-        status: r.status || 'approved',
+        status: r.status != null && String(r.status).trim() !== '' ? r.status : 'pending',
         views: r.views || 0,
         clicks: r.clicks || 0,
         favCount: r.fav_count || 0,
