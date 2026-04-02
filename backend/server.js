@@ -105,6 +105,18 @@ app.get('/api/ping', (req, res) => {
   res.json({ ok: true, ts: Date.now() });
 });
 
+// Kök URL (Docker’da statik site yok; tarayıcıda domain açılınca 404 yerine bilgi)
+app.get('/', (req, res) => {
+  res.type('html');
+  res.send(
+    '<!DOCTYPE html><html lang="tr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Alsat API</title></head>' +
+      '<body style="font-family:system-ui,sans-serif;padding:2rem;line-height:1.5;max-width:36rem">' +
+      '<h1>Alsat API</h1><p>Sunucu çalışıyor.</p>' +
+      '<ul><li><a href="/api/health">/api/health</a> — durum</li><li><a href="/api-docs">/api-docs</a> — API dokümantasyonu</li></ul>' +
+      '</body></html>'
+  );
+});
+
 // SQLite tabloları
 if (isSqlite) {
   const Database = require('better-sqlite3');
