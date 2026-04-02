@@ -1746,10 +1746,13 @@
     </div>
 
     <!-- MESAJLAŞMA MODAL -->
-    <div id="messaging-modal" class="modern-modal" role="dialog" aria-modal="true" aria-labelledby="messaging-modal-title">
+    <div id="messaging-modal" class="modern-modal messaging-modal" role="dialog" aria-modal="true" aria-labelledby="messaging-modal-title">
         <div class="modal-content messaging-modal-content">
             <span class="close-btn" onclick="window.closeMessagingModal()">&times;</span>
-            <h2 id="messaging-modal-title" class="modal-title"><i class="fa-solid fa-comments"></i> Mesajlar</h2>
+            <div class="messaging-modal-head">
+                <h2 id="messaging-modal-title" class="modal-title"><i class="fa-solid fa-comments"></i> Mesajlar</h2>
+                <p class="messaging-modal-sub">İlanlar hakkında alıcı ve satıcı güvenli mesajlaşması</p>
+            </div>
             <div class="messaging-grid">
             <div class="conversations-list">
                 <input type="search" id="msg-search" placeholder="Konuşma ara...">
@@ -1908,6 +1911,10 @@
     }
     if (window.API_BASE) {
         fetch(window.API_BASE + '/api/config').then(function(r){ return r.json(); }).then(function(c){
+            if (typeof c.adRequiresApproval === 'boolean') {
+                window.__ALSAT_SERVER_AD_REQUIRES_APPROVAL = c.adRequiresApproval;
+                if (typeof window.refreshAdminSettingsFromServer === 'function') window.refreshAdminSettingsFromServer();
+            }
             if (c.recaptchaSiteKey) {
                 window.RECAPTCHA_SITE_KEY = c.recaptchaSiteKey;
                 var s=document.createElement('script'); s.src='https://www.google.com/recaptcha/api.js?render='+c.recaptchaSiteKey; s.async=true; document.head.appendChild(s);

@@ -410,6 +410,35 @@
       } catch (e) { return []; }
     },
 
+    async fetchSiteSettings() {
+      if (!base()) return {};
+      try {
+        const r = await fetch(base() + '/api/site-settings');
+        if (!r.ok) return {};
+        return await r.json();
+      } catch (e) {
+        return {};
+      }
+    },
+
+    async putAdminSiteSettings(data) {
+      if (!base()) throw new Error('API yok');
+      return await fetchJson(base() + '/api/admin/site-settings', {
+        method: 'PUT',
+        headers: getAuthHeaders(),
+        body: JSON.stringify(data)
+      });
+    },
+
+    async patchConversationDeal(convId, action) {
+      if (!base()) return null;
+      return await fetchJson(base() + '/api/conversations/' + convId + '/deal', {
+        method: 'PATCH',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ action })
+      });
+    },
+
     async getConversations() {
       if (!base()) return [];
       try {

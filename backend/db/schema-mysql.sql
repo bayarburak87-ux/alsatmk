@@ -171,4 +171,10 @@ CREATE TABLE IF NOT EXISTS web_push_subscriptions (
   INDEX idx_web_push_user (user_id)
 );
 
+CREATE TABLE IF NOT EXISTS site_settings (
+  id INT PRIMARY KEY,
+  data JSON NOT NULL,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 -- Mevcut veritabanı için: ALTER TABLE ads ADD COLUMN hide_phone TINYINT(1) DEFAULT 0;

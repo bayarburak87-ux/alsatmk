@@ -177,3 +177,11 @@ CREATE TABLE IF NOT EXISTS web_push_subscriptions (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_web_push_user ON web_push_subscriptions(user_id);
+
+-- Tek satır site ayarları (admin panel — JSON)
+CREATE TABLE IF NOT EXISTS site_settings (
+  id INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+  data JSONB NOT NULL DEFAULT '{}'::jsonb,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+INSERT INTO site_settings (id, data) VALUES (1, '{}'::jsonb) ON CONFLICT (id) DO NOTHING;

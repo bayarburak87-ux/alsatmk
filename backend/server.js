@@ -148,6 +148,7 @@ if (isSqlite) {
     try { sqlite.exec('ALTER TABLE ads ADD COLUMN hide_phone INTEGER DEFAULT 0'); } catch (e) {}
     try { sqlite.exec('ALTER TABLE messages ADD COLUMN read_at INTEGER'); } catch (e) {}
     try { sqlite.exec('CREATE TABLE IF NOT EXISTS web_push_subscriptions (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, endpoint TEXT, p256dh TEXT, auth TEXT, user_agent TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP)'); } catch (e) {}
+    try { sqlite.exec('CREATE TABLE IF NOT EXISTS site_settings (id INTEGER PRIMARY KEY CHECK (id = 1), data TEXT NOT NULL DEFAULT \'{}\')'); } catch (e) {}
 }
 
 function paramStyle(sql, params) {
@@ -182,6 +183,35 @@ function parseAdRow(r) {
   if (typeof o.attrs === 'string') o.attrs = safeJsonField(o.attrs, null);
   if (typeof o.price_history === 'string') o.priceHistory = safeJsonField(o.price_history, null);
   return o;
+}
+
+async function ensureSiteSettingsTable() {
+  try {
+    if (driver === 'postgres') {
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS site_settings (
+          id INTEGER PRIMARY KEY DEFAULT 1 CHECK (id = 1),
+          data JSONB NOT NULL DEFAULT '{}'::jsonb,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      await db.query(`INSERT INTO site_settings (id, data) VALUES (1, '{}'::jsonb) ON CONFLICT (id) DO NOTHING`);
+    } else if (driver === 'mysql') {
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS site_settings (
+          id INT PRIMARY KEY,
+          data JSON NOT NULL,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      await db.query(`INSERT IGNORE INTO site_settings (id, data) VALUES (1, CAST('{}' AS JSON))`);
+    } else {
+      const { sql: ins, params: inp } = paramStyle('INSERT OR IGNORE INTO site_settings (id, data) VALUES (1, ?)', ['{}']);
+      await db.runAsync(ins, inp);
+    }
+  } catch (e) {
+    logger.warn('ensureSiteSettingsTable: ' + (e.message || e));
+  }
 }
 
 // ========== İLANLAR (Pagination - page/limit yoksa eski format) ==========
@@ -787,11 +817,24 @@ app.get('/api/conversations', jwtMiddleware, async (req, res, next) => {
   try {
     const userId = req.user.id;
     const { sql: s, params: p } = paramStyle(
-      'SELECT c.*, a.title as ad_title, a.images as ad_images FROM conversations c LEFT JOIN ads a ON c.ad_id = a.id WHERE c.seller_id = ? OR c.buyer_id = ? ORDER BY c.last_msg_time DESC',
-      [userId, userId]
+      `SELECT c.*, a.title as ad_title, a.images as ad_images,
+        (SELECT COUNT(*) FROM messages m WHERE m.conversation_id = c.id AND m.from_user_id != ? AND m.read_at IS NULL) AS unread_count
+       FROM conversations c LEFT JOIN ads a ON c.ad_id = a.id WHERE c.seller_id = ? OR c.buyer_id = ? ORDER BY c.last_msg_time DESC`,
+      [userId, userId, userId]
     );
     const rows = await db.queryAsync(s, p);
-    res.json(rows.map(r => ({ ...r, ad_images: r.ad_images ? JSON.parse(r.ad_images) : [] })));
+    const parseAdImages = v => {
+      if (!v) return [];
+      if (Array.isArray(v)) return v;
+      if (typeof v === 'object') return [];
+      try {
+        const x = JSON.parse(v);
+        return Array.isArray(x) ? x : [];
+      } catch (e) {
+        return [];
+      }
+    };
+    res.json(rows.map(r => ({ ...r, ad_images: parseAdImages(r.ad_images) })));
   } catch (e) {
     next(e);
   }
@@ -864,6 +907,38 @@ app.patch('/api/conversations/:id/messages/read', jwtMiddleware, async (req, res
     const now = Date.now();
     const { sql: s2, params: p2 } = paramStyle('UPDATE messages SET read_at = ? WHERE conversation_id = ? AND from_user_id != ? AND read_at IS NULL', [now, convId, userId]);
     await db.runAsync(s2, p2);
+    res.json({ ok: true });
+  } catch (e) {
+    next(e);
+  }
+});
+
+app.patch('/api/conversations/:id/deal', jwtMiddleware, async (req, res, next) => {
+  try {
+    const convId = parseInt(req.params.id, 10);
+    const userId = req.user.id;
+    const action = (req.body && req.body.action) || '';
+    const { sql: s1, params: p1 } = paramStyle(
+      'SELECT id, ad_id, seller_id, buyer_id FROM conversations WHERE id = ? AND (seller_id = ? OR buyer_id = ?)',
+      [convId, userId, userId]
+    );
+    const conv = await db.getAsync(s1, p1);
+    if (!conv) return res.status(404).json({ error: 'Konuşma bulunamadı' });
+    const truthy = isSqlite ? 1 : true;
+    if (action === 'sellerConfirm') {
+      if (Number(conv.seller_id) !== Number(userId)) return res.status(403).json({ error: 'Yetkisiz' });
+      const { sql: u, params: up } = paramStyle('UPDATE conversations SET seller_confirmed = ? WHERE id = ?', [truthy, convId]);
+      await db.runAsync(u, up);
+    } else if (action === 'buyerConfirm') {
+      if (Number(conv.buyer_id) !== Number(userId)) return res.status(403).json({ error: 'Yetkisiz' });
+      const { sql: u, params: up } = paramStyle('UPDATE conversations SET buyer_confirmed = ? WHERE id = ?', [truthy, convId]);
+      await db.runAsync(u, up);
+      const soldAt = new Date().toISOString();
+      const { sql: ua, params: pa } = paramStyle('UPDATE ads SET status = ?, sold_at = ? WHERE id = ?', ['sold', soldAt, conv.ad_id]);
+      await db.runAsync(ua, pa);
+    } else {
+      return res.status(400).json({ error: 'Geçersiz aksiyon' });
+    }
     res.json({ ok: true });
   } catch (e) {
     next(e);
@@ -1079,12 +1154,59 @@ app.delete('/api/admin/ads/:id', jwtMiddleware, requireAdminJwt, async (req, res
   }
 });
 
+// ========== SİTE AYARLARI (Postgres / tek kayıt) ==========
+app.get('/api/site-settings', async (req, res, next) => {
+  try {
+    const { sql: s, params: p } = paramStyle('SELECT data FROM site_settings WHERE id = 1', []);
+    const row = await db.getAsync(s, p);
+    let data = {};
+    if (row && row.data != null) {
+      data = typeof row.data === 'string' ? JSON.parse(row.data) : row.data;
+    }
+    res.json(data && typeof data === 'object' ? data : {});
+  } catch (e) {
+    if (e.message && /no such table|relation .* does not exist/i.test(e.message)) return res.json({});
+    next(e);
+  }
+});
+
+app.put('/api/admin/site-settings', jwtMiddleware, requireAdminJwt, async (req, res, next) => {
+  try {
+    const data = req.body;
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      return res.status(400).json({ error: 'Geçersiz veri' });
+    }
+    const json = JSON.stringify(data);
+    if (driver === 'postgres') {
+      await db.query(
+        `INSERT INTO site_settings (id, data, updated_at) VALUES (1, $1::jsonb, CURRENT_TIMESTAMP)
+         ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = CURRENT_TIMESTAMP`,
+        [json]
+      );
+    } else if (driver === 'mysql') {
+      await db.query(
+        'INSERT INTO site_settings (id, data, updated_at) VALUES (1, ?, CURRENT_TIMESTAMP) ON DUPLICATE KEY UPDATE data = VALUES(data), updated_at = CURRENT_TIMESTAMP',
+        [json]
+      );
+    } else {
+      const { sql: u, params: up } = paramStyle('INSERT OR REPLACE INTO site_settings (id, data) VALUES (1, ?)', [json]);
+      await db.runAsync(u, up);
+    }
+    audit('site_settings_updated', { admin: req.user?.email });
+    res.json({ ok: true });
+  } catch (e) {
+    next(e);
+  }
+});
+
 // ========== PUBLIC CONFIG (reCAPTCHA site key, VAPID public - frontend için) ==========
 app.get('/api/config', (req, res) => {
+  const pending = String(process.env.ADS_DEFAULT_STATUS || 'approved').toLowerCase() === 'pending';
   res.json({
     recaptchaSiteKey: config.recaptcha?.siteKey || '',
     vapidPublicKey: config.vapid?.publicKey || '',
-    adminEmail: (config.admin.email || 'info@alsatmk.com').toLowerCase()
+    adminEmail: (config.admin.email || 'info@alsatmk.com').toLowerCase(),
+    adRequiresApproval: pending
   });
 });
 
@@ -1178,6 +1300,7 @@ if (require.main === module) {
     }
     logger.info(`Alsat: http://localhost:${config.port} (Site + API) | DB: ${driver}`);
     if (ips.length) logger.info(`Diğer cihazlardan: http://${ips[0]}:${config.port}`);
+    await ensureSiteSettingsTable();
     await seedAdminIfEmpty();
   });
 }

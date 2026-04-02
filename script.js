@@ -509,10 +509,22 @@ loadUsersDatabase();
     }
 })();
 
+function useLiveApi() {
+    try {
+        const h = typeof location !== 'undefined' ? String(location.hostname || '') : '';
+        return !!(window.API_BASE && window.AlsatAPI && h && h !== 'localhost' && h !== '127.0.0.1');
+    } catch (e) {
+        return false;
+    }
+}
+window.useLiveApi = useLiveApi;
+window.__apiMessageUnreadTotal = 0;
+window.__apiUnreadConvSummaries = [];
+
 window.favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
 window.favoriteLists = JSON.parse(localStorage.getItem('alsat_favorite_lists') || '{}');
 function saveFavoriteLists() { localStorage.setItem('alsat_favorite_lists', JSON.stringify(window.favoriteLists || {})); }
-window.conversations = JSON.parse(localStorage.getItem('conversations') || '{}');
+window.conversations = useLiveApi() ? {} : JSON.parse(localStorage.getItem('conversations') || '{}');
 window.notifications = JSON.parse(localStorage.getItem('alsat_notifications_list') || '[]');
 window.userRatings = JSON.parse(localStorage.getItem('userRatings') || '{}');
 window.userCredits = JSON.parse(localStorage.getItem('userCredits') || '{}');
@@ -592,30 +604,44 @@ const DEFAULT_SITE_SETTINGS = {
 
 function getSiteSettings() {
     const stored = localStorage.getItem('alsat_site_settings');
-    if (!stored) return { ...DEFAULT_SITE_SETTINGS, premiumPrices: { ...DEFAULT_SITE_SETTINGS.premiumPrices } };
-    var parsed;
-    try { parsed = JSON.parse(stored); } catch (e) { return { ...DEFAULT_SITE_SETTINGS, premiumPrices: { ...DEFAULT_SITE_SETTINGS.premiumPrices } }; }
-    if (!parsed || typeof parsed !== 'object') return { ...DEFAULT_SITE_SETTINGS, premiumPrices: { ...DEFAULT_SITE_SETTINGS.premiumPrices } };
+    var parsed = null;
+    if (stored) {
+        try { parsed = JSON.parse(stored); } catch (e) { parsed = null; }
+    }
+    const p = parsed && typeof parsed === 'object' ? parsed : null;
     const s = {
-        premiumPrices: { ...DEFAULT_SITE_SETTINGS.premiumPrices, ...(parsed.premiumPrices || {}) },
-        bumpPrice: parsed.bumpPrice ?? DEFAULT_SITE_SETTINGS.bumpPrice,
-        whatsappNumber: parsed.whatsappNumber ?? DEFAULT_SITE_SETTINGS.whatsappNumber,
-        viberNumber: parsed.viberNumber ?? DEFAULT_SITE_SETTINGS.viberNumber,
-        adRequiresApproval: parsed.adRequiresApproval ?? DEFAULT_SITE_SETTINGS.adRequiresApproval,
-        maxPhotos: parsed.maxPhotos ?? DEFAULT_SITE_SETTINGS.maxPhotos,
-        maxVideoSeconds: parsed.maxVideoSeconds ?? DEFAULT_SITE_SETTINGS.maxVideoSeconds,
-        defaultAdDays: parsed.defaultAdDays ?? DEFAULT_SITE_SETTINGS.defaultAdDays,
-        extendedAdDays: parsed.extendedAdDays ?? DEFAULT_SITE_SETTINGS.extendedAdDays,
-        sellerAppMsgIntro: parsed.sellerAppMsgIntro ?? DEFAULT_SITE_SETTINGS.sellerAppMsgIntro,
-        sellerAppMsgConfirm: parsed.sellerAppMsgConfirm ?? DEFAULT_SITE_SETTINGS.sellerAppMsgConfirm
+        premiumPrices: { ...DEFAULT_SITE_SETTINGS.premiumPrices, ...(p && p.premiumPrices ? p.premiumPrices : {}) },
+        bumpPrice: p ? (p.bumpPrice ?? DEFAULT_SITE_SETTINGS.bumpPrice) : DEFAULT_SITE_SETTINGS.bumpPrice,
+        whatsappNumber: p ? (p.whatsappNumber ?? DEFAULT_SITE_SETTINGS.whatsappNumber) : DEFAULT_SITE_SETTINGS.whatsappNumber,
+        viberNumber: p ? (p.viberNumber ?? DEFAULT_SITE_SETTINGS.viberNumber) : DEFAULT_SITE_SETTINGS.viberNumber,
+        adRequiresApproval: p ? (p.adRequiresApproval ?? DEFAULT_SITE_SETTINGS.adRequiresApproval) : DEFAULT_SITE_SETTINGS.adRequiresApproval,
+        maxPhotos: p ? (p.maxPhotos ?? DEFAULT_SITE_SETTINGS.maxPhotos) : DEFAULT_SITE_SETTINGS.maxPhotos,
+        maxVideoSeconds: p ? (p.maxVideoSeconds ?? DEFAULT_SITE_SETTINGS.maxVideoSeconds) : DEFAULT_SITE_SETTINGS.maxVideoSeconds,
+        defaultAdDays: p ? (p.defaultAdDays ?? DEFAULT_SITE_SETTINGS.defaultAdDays) : DEFAULT_SITE_SETTINGS.defaultAdDays,
+        extendedAdDays: p ? (p.extendedAdDays ?? DEFAULT_SITE_SETTINGS.extendedAdDays) : DEFAULT_SITE_SETTINGS.extendedAdDays,
+        sellerAppMsgIntro: p ? (p.sellerAppMsgIntro ?? DEFAULT_SITE_SETTINGS.sellerAppMsgIntro) : DEFAULT_SITE_SETTINGS.sellerAppMsgIntro,
+        sellerAppMsgConfirm: p ? (p.sellerAppMsgConfirm ?? DEFAULT_SITE_SETTINGS.sellerAppMsgConfirm) : DEFAULT_SITE_SETTINGS.sellerAppMsgConfirm
     };
-    // Şimdilik yayında moderasyon yok: API modunda "beklemeye düşme"yi zorla kapat.
-    if (window.API_BASE) s.adRequiresApproval = false;
+    if (useLiveApi() && window.__ALSAT_SITE_SETTINGS_SERVER && typeof window.__ALSAT_SITE_SETTINGS_SERVER === 'object') {
+        const srv = window.__ALSAT_SITE_SETTINGS_SERVER;
+        if (srv.premiumPrices && typeof srv.premiumPrices === 'object') {
+            s.premiumPrices = { ...s.premiumPrices, ...srv.premiumPrices };
+        }
+        ['bumpPrice', 'maxPhotos', 'maxVideoSeconds', 'defaultAdDays', 'extendedAdDays', 'whatsappNumber', 'viberNumber', 'sellerAppMsgIntro', 'sellerAppMsgConfirm'].forEach(function(k) {
+            if (srv[k] !== undefined && srv[k] !== null) s[k] = srv[k];
+        });
+    }
+    const h = typeof location !== 'undefined' ? String(location.hostname || '') : '';
+    const isLocalHost = h === 'localhost' || h === '127.0.0.1';
+    if (window.API_BASE && isLocalHost) {
+        s.adRequiresApproval = false;
+    } else if (window.API_BASE && !isLocalHost && typeof window.__ALSAT_SERVER_AD_REQUIRES_APPROVAL === 'boolean') {
+        s.adRequiresApproval = window.__ALSAT_SERVER_AD_REQUIRES_APPROVAL;
+    }
     return s;
 }
 
 function saveSiteSettings(s) {
-    if (window.API_BASE && s && typeof s === 'object') s.adRequiresApproval = false;
     localStorage.setItem('alsat_site_settings', JSON.stringify(s));
 }
 
@@ -857,12 +883,160 @@ function saveAdsDatabase() { localStorage.setItem('adsDatabase', JSON.stringify(
 function saveFavorites() { localStorage.setItem('favorites', JSON.stringify(window.favorites)); }
 function saveCredits() { localStorage.setItem('userCredits', JSON.stringify(window.userCredits)); }
 function saveVerified() { localStorage.setItem('alsat_verified', JSON.stringify(window.userVerifiedUntil)); }
-function saveConversations() { localStorage.setItem('conversations', JSON.stringify(window.conversations)); }
+function saveConversations() {
+    if (useLiveApi()) return;
+    localStorage.setItem('conversations', JSON.stringify(window.conversations));
+}
+
+async function syncConversationsFromServer() {
+    if (!useLiveApi() || !window.AlsatAPI?.getConversations || !window.AlsatAPI.isLoggedIn?.()) return;
+    try {
+        const rows = await window.AlsatAPI.getConversations();
+        if (!Array.isArray(rows)) return;
+        const me = await window.AlsatAPI.me().catch(() => null);
+        const myId = me?.id;
+        let unreadSum = 0;
+        const sumList = [];
+        for (let i = 0; i < rows.length; i++) {
+            const r = rows[i];
+            const unr = parseInt(r.unread_count, 10) || 0;
+            unreadSum += unr;
+            const convKey = getConvKey(r.ad_id, r.buyer_id);
+            if (unr > 0) sumList.push({ convKey: convKey, unread_count: unr, ad_title: r.ad_title || '', last_msg_time: r.last_msg_time || 0 });
+            const ad = window.adsDatabase?.find(a => Number(a.id) === Number(r.ad_id));
+            const sellerName = ad?.seller || 'Satıcı';
+            const buyerUd = window.usersDatabase && (window.usersDatabase[r.buyer_id] || window.usersDatabase[String(r.buyer_id)]);
+            const buyerName = (buyerUd && buyerUd.name) || (Number(r.buyer_id) === Number(myId) ? (me?.name || 'Siz') : 'Alıcı');
+            const msgs = await window.AlsatAPI.getConversationMessages(r.id);
+            window.conversations[convKey] = {
+                id: r.id,
+                adId: r.ad_id,
+                sellerId: r.seller_id,
+                buyerId: r.buyer_id,
+                sellerName,
+                buyerName,
+                adTitle: r.ad_title || ad?.title || '',
+                sellerConfirmed: !!(r.seller_confirmed === true || r.seller_confirmed === 1),
+                buyerConfirmed: !!(r.buyer_confirmed === true || r.buyer_confirmed === 1),
+                rated: !!(r.rated === true || r.rated === 1),
+                unread_count: parseInt(r.unread_count, 10) || 0,
+                messages: (msgs || []).map(m => ({
+                    from: m.from_user_id,
+                    text: m.text,
+                    time: m.time,
+                    read_at: m.read_at
+                })),
+                lastMsgTime: r.last_msg_time || 0
+            };
+        }
+        window.__apiMessageUnreadTotal = unreadSum;
+        window.__apiUnreadConvSummaries = sumList;
+        updateMsgBadge();
+        updateNotifBadge();
+    } catch (e) {
+        console.warn('Konuşmalar senkronlanamadı:', e);
+    }
+}
+
+async function refreshMessagingUnread() {
+    if (!useLiveApi() || !window.AlsatAPI?.getConversations || !window.AlsatAPI.isLoggedIn?.()) return;
+    try {
+        const rows = await window.AlsatAPI.getConversations();
+        if (!Array.isArray(rows)) return;
+        let total = 0;
+        const summaries = [];
+        rows.forEach(function(r) {
+            const n = parseInt(r.unread_count, 10) || 0;
+            total += n;
+            const convKey = getConvKey(r.ad_id, r.buyer_id);
+            if (window.conversations[convKey]) window.conversations[convKey].unread_count = n;
+            if (n > 0) {
+                summaries.push({
+                    convKey: convKey,
+                    unread_count: n,
+                    ad_title: r.ad_title || '',
+                    last_msg_time: r.last_msg_time || 0
+                });
+            }
+        });
+        window.__apiMessageUnreadTotal = total;
+        window.__apiUnreadConvSummaries = summaries;
+        updateMsgBadge();
+        updateNotifBadge();
+        if (el('notif-dropdown') && el('notif-dropdown').style.display === 'block') renderNotifList();
+    } catch (e) {}
+}
+
+function buildApiMessageNotifications() {
+    const user = getCurrentUser();
+    if (!useLiveApi() || !user) return [];
+    const out = [];
+    const summaries = window.__apiUnreadConvSummaries;
+    if (Array.isArray(summaries) && summaries.length) {
+        summaries.forEach(function(s) {
+            const c = window.conversations[s.convKey];
+            const uc = parseInt(s.unread_count, 10) || 0;
+            if (uc <= 0) return;
+            const other = c
+                ? (c.sellerId === user.id ? (c.buyerName || 'Alıcı') : (c.sellerName || 'Satıcı'))
+                : (t('user') || 'Kullanıcı');
+            const adT = (c && c.adTitle) || s.ad_title || 'İlan';
+            out.push({
+                id: 'api:' + s.convKey,
+                userId: user.id,
+                type: 'message',
+                title: t('newMessage') || 'Yeni mesaj',
+                body: other + ' · ' + String(adT).slice(0, 36) + (uc > 1 ? ' (' + uc + ')' : ''),
+                read: false,
+                data: { convKey: s.convKey, fromApi: true },
+                sortKey: s.last_msg_time || c?.lastMsgTime || 0
+            });
+        });
+    } else {
+        Object.keys(window.conversations || {}).forEach(function(convKey) {
+            const c = window.conversations[convKey];
+            const uc = parseInt(c.unread_count, 10) || 0;
+            if (uc <= 0) return;
+            const other = c.sellerId === user.id ? (c.buyerName || 'Alıcı') : (c.sellerName || 'Satıcı');
+            out.push({
+                id: 'api:' + convKey,
+                userId: user.id,
+                type: 'message',
+                title: t('newMessage') || 'Yeni mesaj',
+                body: other + ' · ' + (c.adTitle || 'İlan').slice(0, 36) + (uc > 1 ? ' (' + uc + ')' : ''),
+                read: false,
+                data: { convKey: convKey, fromApi: true },
+                sortKey: c.lastMsgTime || 0
+            });
+        });
+    }
+    out.sort(function(a, b) { return (b.sortKey || 0) - (a.sortKey || 0); });
+    return out;
+}
+
+window.__messagingUnreadPollTimer = null;
+function startMessagingUnreadPolling() {
+    if (!useLiveApi() || !window.AlsatAPI?.getConversations) return;
+    if (window.__messagingUnreadPollTimer) clearInterval(window.__messagingUnreadPollTimer);
+    const tick = function() {
+        if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+        if (!window.AlsatAPI.isLoggedIn?.()) return;
+        refreshMessagingUnread();
+    };
+    tick();
+    window.__messagingUnreadPollTimer = setInterval(tick, 22000);
+    document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'visible') tick();
+    });
+}
+
 function updateMsgBadge() {
     const user = getCurrentUser();
     const badge = el('msg-badge');
     if (!user || !badge) return;
-    const unread = (window.notifications || []).filter(n => n.userId === user.id && !n.read && n.type === 'message').length;
+    const unread = useLiveApi()
+        ? (parseInt(window.__apiMessageUnreadTotal, 10) || 0)
+        : (window.notifications || []).filter(n => n.userId === user.id && !n.read && n.type === 'message').length;
     badge.textContent = unread > 0 ? String(unread) : '';
     badge.style.display = unread > 0 ? 'inline' : 'none';
 }
@@ -870,9 +1044,16 @@ function updateNotifBadge() {
     const user = getCurrentUser();
     const badge = el('notif-badge');
     if (!user || !badge) return;
-    const unread = (window.notifications || []).filter(n => n.userId === user.id && !n.read).length;
-    badge.textContent = unread > 0 ? String(unread) : '';
-    badge.style.display = unread > 0 ? 'inline' : 'none';
+    const all = window.notifications || [];
+    const localNonMsg = useLiveApi()
+        ? all.filter(n => n.userId === user.id && !n.read && n.type !== 'message')
+        : all.filter(n => n.userId === user.id && !n.read);
+    const msgUnread = useLiveApi()
+        ? (parseInt(window.__apiMessageUnreadTotal, 10) || 0)
+        : all.filter(n => n.userId === user.id && !n.read && n.type === 'message').length;
+    const total = localNonMsg.length + msgUnread;
+    badge.textContent = total > 0 ? String(total) : '';
+    badge.style.display = total > 0 ? 'inline' : 'none';
 }
 window.toggleNotifDropdown = function() {
     if (window.innerWidth <= 768) { window.openMobileNotifModal?.(); return; }
@@ -898,14 +1079,29 @@ window.closeMobileNotifModal = function() {
 };
 function renderNotifList() {
     const user = getCurrentUser();
-    const items = user ? (window.notifications || []).filter(n => n.userId === user.id).slice(-20).reverse() : [];
+    const localRaw = user ? (window.notifications || []).filter(n => n.userId === user.id) : [];
+    const localItems = useLiveApi()
+        ? localRaw.filter(n => n.type !== 'message')
+        : localRaw;
+    const apiMsgItems = useLiveApi() ? buildApiMessageNotifications() : [];
+    const items = [...apiMsgItems, ...localItems.map(n => ({ ...n, sortKey: n.id || 0 }))]
+        .sort((a, b) => (b.sortKey || 0) - (a.sortKey || 0))
+        .slice(0, 25);
     const emptyHtml = '<p class="empty-state" style="padding:20px;color:var(--text-muted);">Bildirim yok</p>';
     const itemHtml = items.length === 0 ? emptyHtml : items.map(n => {
         let extra = '';
-        if (n.type === 'message' && n.data?.convKey) extra = 'window.openMessagingModal(\'' + n.data.convKey + '\');window.closeMobileNotifModal&&window.closeMobileNotifModal();';
-        else if (n.type === 'store_qa' && n.data?.storeId) extra = 'window.openStoreDetailWithQa&&window.openStoreDetailWithQa(' + n.data.storeId + ');window.closeMobileNotifModal&&window.closeMobileNotifModal();';
+        const isApiMsg = String(n.id).indexOf('api:') === 0;
+        if (n.type === 'message' && n.data?.convKey) {
+            const ck = String(n.data.convKey).replace(/'/g, "\\'");
+            extra = 'window.openMessagingModal(\'' + ck + '\');window.closeMobileNotifModal&&window.closeMobileNotifModal();';
+        } else if (n.type === 'store_qa' && n.data?.storeId) extra = 'window.openStoreDetailWithQa&&window.openStoreDetailWithQa(' + n.data.storeId + ');window.closeMobileNotifModal&&window.closeMobileNotifModal();';
         else if (n.type === 'search_alert' && n.data?.adIds && n.data.adIds[0]) extra = 'showListingPage();setTimeout(function(){window.ilanDetayAc&&window.ilanDetayAc(' + n.data.adIds[0] + ');},400);window.closeMobileNotifModal&&window.closeMobileNotifModal();';
-        return `<div class="notif-item ${n.read ? '' : 'unread'}" data-id="${n.id}" onclick="markNotifRead(${n.id});window.closeMobileNotifModal&&window.closeMobileNotifModal();${extra}" role="button" tabindex="0">` +
+        const readClass = isApiMsg ? 'unread' : (n.read ? '' : 'unread');
+        const idJs = isApiMsg
+            ? ("'" + String(n.id).replace(/\\/g, '\\\\').replace(/'/g, "\\'") + "'")
+            : String(n.id);
+        const onClick = 'markNotifRead(' + idJs + ');' + extra;
+        return `<div class="notif-item ${readClass}" data-notif-id="${escapeHtml(String(n.id))}" onclick="${onClick}" role="button" tabindex="0">` +
             `<strong>${escapeHtml(n.title)}</strong><p>${escapeHtml(n.body)}</p></div>`;
     }).join('');
     const list = el('notif-list');
@@ -914,6 +1110,13 @@ function renderNotifList() {
     if (mobList) mobList.innerHTML = itemHtml;
 }
 window.markNotifRead = function(id) {
+    if (String(id).indexOf('api:') === 0) {
+        const convKey = String(id).slice(4);
+        window.closeMobileNotifModal && window.closeMobileNotifModal();
+        window.openMessagingModal && window.openMessagingModal(convKey);
+        setTimeout(function() { refreshMessagingUnread(); }, 600);
+        return;
+    }
     const n = (window.notifications || []).find(x => x.id === id);
     if (n) { n.read = true; saveNotifications(); updateNotifBadge(); updateMsgBadge(); renderNotifList(); }
 };
@@ -1042,6 +1245,12 @@ async function ensureLoggedInUser() {
 window.ensureLoggedInUser = ensureLoggedInUser;
 
 function logout() {
+    window.__apiMessageUnreadTotal = 0;
+    window.__apiUnreadConvSummaries = [];
+    if (window.__messagingUnreadPollTimer) {
+        clearInterval(window.__messagingUnreadPollTimer);
+        window.__messagingUnreadPollTimer = null;
+    }
     if (window.API_BASE && window.AlsatAPI && typeof window.AlsatAPI.logout === 'function') {
         window.AlsatAPI.logout();
     }
@@ -2005,6 +2214,10 @@ function loadAdminSettings() {
     const mi = el('adm-seller-msg-intro'); if (mi) mi.value = s.sellerAppMsgIntro || '';
     const mc = el('adm-seller-msg-confirm'); if (mc) mc.value = s.sellerAppMsgConfirm || '';
 }
+
+window.refreshAdminSettingsFromServer = function() {
+    try { loadAdminSettings(); } catch (e) {}
+};
 
 window.adminDeleteAd = async function(id) {
     if (!isAdmin()) return;
@@ -4700,9 +4913,10 @@ function maybeShowSoldSurvey(user) {
     m.style.display = 'flex';
 }
 
-window.openMessagingModal = function (openConvKey) {
+window.openMessagingModal = async function (openConvKey) {
     const user = getCurrentUser();
     if (!user) { showToast('loginRequired', 'warning', 2000); return; }
+    if (useLiveApi() && window.AlsatAPI?.getConversations) await syncConversationsFromServer();
     renderConversationList(user);
     if (openConvKey) selectConversation(openConvKey);
     else {
@@ -4725,6 +4939,12 @@ window.closeMessagingModal = function () {
     el('messaging-modal').classList.remove('active');
 };
 
+function imgThumbForConv(c) {
+    const ad = window.adsDatabase && window.adsDatabase.find(a => Number(a.id) === Number(c.adId));
+    if (!ad) return '';
+    return (ad.images && ad.images[0]) || ad.image || '';
+}
+
 function renderConversationList(user) {
     const list = el('conversations');
     if (!list) return;
@@ -4735,13 +4955,20 @@ function renderConversationList(user) {
         return;
     }
     list.innerHTML = convs.map(([key, c]) => {
-        const other = c.sellerId === user.id ? c.buyerName : c.sellerName;
+        const other = escapeHtml((c.sellerId === user.id ? c.buyerName : c.sellerName) || '');
         const preview = (c.messages && c.messages[c.messages.length - 1]?.text) || '';
-        return `<div class="conv-item" data-conv="${key}">
-            <div class="conv-avatar"><i class="fa-solid fa-user"></i></div>
+        const prevEsc = escapeHtml(preview.slice(0, 48));
+        const uc = parseInt(c.unread_count, 10) || 0;
+        const unreadBadge = uc > 0 ? `<span class="conv-unread-badge" aria-label="${uc} okunmamış">${uc > 9 ? '9+' : uc}</span>` : '';
+        const adSnippet = escapeHtml((c.adTitle || '').slice(0, 28));
+        const _thumb = imgThumbForConv(c);
+        const thumbImg = _thumb ? `<img src="${String(_thumb).replace(/"/g, '&quot;')}" alt="">` : '<i class="fa-solid fa-user"></i>';
+        return `<div class="conv-item ${uc > 0 ? 'conv-item-unread' : ''}" data-conv="${key}">
+            <div class="conv-avatar">${thumbImg}</div>
             <div class="conv-info">
-                <div class="conv-name">${other}</div>
-                <div class="conv-preview">${preview.slice(0, 40)}${preview.length > 40 ? '...' : ''}</div>
+                <div class="conv-top"><span class="conv-name">${other}</span>${unreadBadge}</div>
+                <div class="conv-ad-line">${adSnippet || 'İlan'}</div>
+                <div class="conv-preview">${prevEsc}${preview.length > 48 ? '…' : ''}</div>
             </div>
         </div>`;
     }).join('');
@@ -4759,51 +4986,69 @@ function selectConversation(convKey) {
     const mv = el('message-view');
     const mfc = el('message-form-container');
     if (!mv) return;
-    const otherName = c.sellerId === user.id ? c.buyerName : c.sellerName;
-    const ad = window.adsDatabase.find(a => a.id === c.adId);
-    const imgSrc = ad && ((ad.images && ad.images[0]) || ad.image);
-    let dealHtml = '';
-    const isSeller = c.sellerId === user.id;
-    const bothConfirmed = c.sellerConfirmed && c.buyerConfirmed;
-    if (isSeller) {
-        dealHtml = c.sellerConfirmed ? '<span class="deal-status">✓ Sattığınızı onayladınız</span>' : `<button class="deal-btn sold" data-action="sellerConfirm">${t('confirmSold') || 'Evet Sattım'}</button>`;
-    } else {
-        dealHtml = c.buyerConfirmed ? '<span class="deal-status">✓ Aldığınızı onayladınız</span>' : `<button class="deal-btn bought" data-action="buyerConfirm">${t('confirmBought') || 'Evet Aldım'}</button>`;
-        if (bothConfirmed && !c.rated) dealHtml += ` <button class="deal-btn rate" data-action="rate">${t('rateSeller')}</button>`;
-    }
-    mv.innerHTML = `
-        <div class="message-header" style="padding:15px;border-bottom:1px solid var(--border-color);display:flex;align-items:center;gap:12px;">
-            ${imgSrc ? `<img src="${imgSrc}" style="width:50px;height:50px;object-fit:cover;border-radius:8px;">` : ''}
-            <div>
-                <strong>${c.adTitle || 'İlan'}</strong>
-                <p style="font-size:12px;color:var(--text-muted);">${otherName}</p>
+
+    function paintPanel() {
+        const otherName = c.sellerId === user.id ? c.buyerName : c.sellerName;
+        const ad = window.adsDatabase.find(a => a.id === c.adId);
+        const imgSrc = ad && ((ad.images && ad.images[0]) || ad.image);
+        let dealHtml = '';
+        const isSeller = c.sellerId === user.id;
+        const bothConfirmed = c.sellerConfirmed && c.buyerConfirmed;
+        if (isSeller) {
+            dealHtml = c.sellerConfirmed ? '<span class="deal-status">✓ Sattığınızı onayladınız</span>' : `<button class="deal-btn sold" data-action="sellerConfirm">${t('confirmSold') || 'Evet Sattım'}</button>`;
+        } else {
+            dealHtml = c.buyerConfirmed ? '<span class="deal-status">✓ Aldığınızı onayladınız</span>' : `<button class="deal-btn bought" data-action="buyerConfirm">${t('confirmBought') || 'Evet Aldım'}</button>`;
+            if (bothConfirmed && !c.rated) dealHtml += ` <button class="deal-btn rate" data-action="rate">${t('rateSeller')}</button>`;
+        }
+        const thumb = imgSrc ? `<div class="message-thread-thumb"><img src="${String(imgSrc).replace(/"/g, '&quot;')}" alt=""></div>` : '<div class="message-thread-thumb message-thread-thumb-ph"><i class="fa-solid fa-image"></i></div>';
+        mv.innerHTML = `
+        <div class="message-thread-header">
+            ${thumb}
+            <div class="message-thread-meta">
+                <h3 class="message-thread-title">${escapeHtml(c.adTitle || 'İlan')}</h3>
+                <p class="message-thread-peer"><i class="fa-solid fa-user"></i> ${escapeHtml(otherName)}</p>
             </div>
         </div>
-        <div class="message-list" style="flex:1;overflow-y:auto;padding:15px;display:flex;flex-direction:column;gap:4px;">
+        <div class="message-list">
             ${formatMessagesWithDates(c.messages || [], user.id)}
         </div>
-        <div class="deal-buttons" style="padding:10px 15px;border-top:1px solid var(--border-color);">${dealHtml}</div>
+        <div class="deal-buttons">${dealHtml}</div>
     `;
-    mv.dataset.convKey = convKey;
-    if (mfc) mfc.style.display = 'flex';
-    el('message-input').value = '';
-    const qtEl = el('message-quick-templates');
-    if (qtEl) {
-        const buyerTemplates = ['Hala satılık mı?', 'En son fiyat ne?', 'Takas yapılır mı?', 'Nerede buluşabiliriz?', 'Yarın teslim alabilir miyim?'];
-        const sellerTemplates = ['Evet hala satılık', 'Teslimat mümkün', 'Buluşma noktası önerebilirim', 'En düşük fiyat X EUR', 'Yarın uygun'];
-        const templates = isSeller ? sellerTemplates : buyerTemplates;
-        qtEl.innerHTML = templates.map(t => `<button type="button" class="msg-quick-btn" data-text="${escapeHtml(t)}">${escapeHtml(t)}</button>`).join('');
-        qtEl.querySelectorAll('.msg-quick-btn').forEach(btn => {
-            btn.onclick = () => { el('message-input').value = btn.dataset.text; el('message-input').focus(); };
+        mv.dataset.convKey = convKey;
+        if (mfc) mfc.style.display = 'flex';
+        el('message-input').value = '';
+        const qtEl = el('message-quick-templates');
+        if (qtEl) {
+            const buyerTemplates = ['Hala satılık mı?', 'En son fiyat ne?', 'Takas yapılır mı?', 'Nerede buluşabiliriz?', 'Yarın teslim alabilir miyim?'];
+            const sellerTemplates = ['Evet hala satılık', 'Teslimat mümkün', 'Buluşma noktası önerebilirim', 'En düşük fiyat X EUR', 'Yarın uygun'];
+            const templates = isSeller ? sellerTemplates : buyerTemplates;
+            qtEl.innerHTML = templates.map(tem => `<button type="button" class="msg-quick-btn" data-text="${escapeHtml(tem)}">${escapeHtml(tem)}</button>`).join('');
+            qtEl.querySelectorAll('.msg-quick-btn').forEach(btn => {
+                btn.onclick = () => { el('message-input').value = btn.dataset.text; el('message-input').focus(); };
+            });
+        }
+        mv.querySelectorAll('[data-action]').forEach(btn => {
+            btn.onclick = () => handleDealAction(convKey, btn.dataset.action);
         });
+        const msgList = mv.querySelector('.message-list');
+        if (msgList) msgList.scrollTop = msgList.scrollHeight;
     }
-    mv.querySelectorAll('[data-action]').forEach(btn => {
-        btn.onclick = () => handleDealAction(convKey, btn.dataset.action);
-    });
-    const msgList = mv.querySelector('.message-list');
-    if (msgList) msgList.scrollTop = msgList.scrollHeight;
-    if (window.API_BASE && window.AlsatAPI && c.id) {
-        window.AlsatAPI.markMessagesAsRead(c.id);
+
+    if (useLiveApi() && c.id && window.AlsatAPI?.getConversationMessages) {
+        window.AlsatAPI.getConversationMessages(c.id).then(async function(msgs) {
+            c.messages = (msgs || []).map(function(m) {
+                return { from: m.from_user_id, text: m.text, time: m.time, read_at: m.read_at };
+            });
+            if (window.AlsatAPI.markMessagesAsRead) await window.AlsatAPI.markMessagesAsRead(c.id);
+            c.unread_count = 0;
+            paintPanel();
+            await refreshMessagingUnread();
+            const u2 = getCurrentUser();
+            if (u2) renderConversationList(u2);
+        }).catch(function() { paintPanel(); });
+    } else {
+        paintPanel();
+        if (window.API_BASE && window.AlsatAPI && c.id) window.AlsatAPI.markMessagesAsRead(c.id);
     }
 }
 
@@ -4844,6 +5089,59 @@ function handleDealAction(convKey, action) {
     if (!c) return;
     const user = getCurrentUser();
     if (!user) return;
+
+    if (useLiveApi() && c.id && window.AlsatAPI?.patchConversationDeal) {
+        const run = async function() {
+            try {
+                if (action === 'sellerConfirm') {
+                    await window.AlsatAPI.patchConversationDeal(c.id, 'sellerConfirm');
+                    c.sellerConfirmed = true;
+                    selectConversation(convKey);
+                    showToast('confirmSaved', 'success', 2000);
+                    addNotification(c.buyerId, 'deal', t('sellerConfirmedTitle') || 'Satıcı onayladı', t('sellerConfirmedBody') || 'Satıcı ürünü sattığını onayladı.', { convKey });
+                    updateNotifBadge();
+                    return;
+                }
+                if (action === 'buyerConfirm') {
+                    await window.AlsatAPI.patchConversationDeal(c.id, 'buyerConfirm');
+                    c.buyerConfirmed = true;
+                    const ad = window.adsDatabase?.find(a => a.id === c.adId);
+                    if (ad) {
+                        ad.status = 'sold';
+                        ad.soldAt = new Date().toISOString();
+                        saveAdsDatabase();
+                        if (ad.userId && user) {
+                            const store = (window.storesDatabase || []).find(s => s.ownerId === ad.userId);
+                            if (store) {
+                                window.storePurchases = window.storePurchases || [];
+                                if (!window.storePurchases.some(p => p.storeId === store.id && p.userId === user.id)) {
+                                    window.storePurchases.push({ storeId: store.id, userId: user.id });
+                                    localStorage.setItem('alsat_store_purchases', JSON.stringify(window.storePurchases));
+                                }
+                            }
+                        }
+                    }
+                    selectConversation(convKey);
+                    showToast('confirmSaved', 'success', 2000);
+                    addNotification(c.sellerId, 'deal', t('buyerConfirmedTitle') || 'Alıcı onayladı', t('buyerConfirmedBody') || 'Alıcı ürünü aldı. İlan satıldı olarak işaretlendi.', { convKey });
+                    updateNotifBadge();
+                    if (typeof applyFilters === 'function') applyFilters();
+                    return;
+                }
+                if (action === 'rate') {
+                    window.closeMessagingModal();
+                    el('rating-modal').dataset.convKey = convKey;
+                    if (c.id) el('rating-modal').dataset.conversationId = String(c.id);
+                    window.openRatingModal(c.adId);
+                }
+            } catch (err) {
+                showToast(err?.error || err?.message || 'İşlem başarısız', 'error', 2500);
+            }
+        };
+        run();
+        return;
+    }
+
     if (action === 'sellerConfirm') { c.sellerConfirmed = true; saveConversations(); selectConversation(convKey); showToast('confirmSaved', 'success', 2000); addNotification(c.buyerId, 'deal', t('sellerConfirmedTitle') || 'Satıcı onayladı', t('sellerConfirmedBody') || 'Satıcı ürünü sattığını onayladı.', { convKey }); updateNotifBadge(); }
     else if (action === 'buyerConfirm') {
         c.buyerConfirmed = true;
@@ -4867,7 +5165,7 @@ function handleDealAction(convKey, action) {
         addNotification(c.sellerId, 'deal', t('buyerConfirmedTitle') || 'Alıcı onayladı', t('buyerConfirmedBody') || 'Alıcı ürünü aldı. İlan satıldı olarak işaretlendi.', { convKey }); updateNotifBadge();
         if (typeof applyFilters === 'function') applyFilters();
     }
-    else if (action === 'rate') { window.closeMessagingModal(); el('rating-modal').dataset.convKey = convKey; window.openRatingModal(c.adId); }
+    else if (action === 'rate') { window.closeMessagingModal(); el('rating-modal').dataset.convKey = convKey; if (c.id) el('rating-modal').dataset.conversationId = String(c.id); window.openRatingModal(c.adId); }
 }
 
 window.sendMessageToAd = function (adId) {
@@ -4878,6 +5176,35 @@ window.sendMessageToAd = function (adId) {
     const sellerId = ad.userId || 0;
     if (sellerId === user.id) { showToast('ownAd', 'warning', 2000); return; }
     const convKey = getConvKey(adId, user.id);
+
+    if (useLiveApi() && window.AlsatAPI?.createConversation) {
+        (async function() {
+            try {
+                const newId = await window.AlsatAPI.createConversation(adId);
+                if (!newId) throw new Error('Konuşma oluşturulamadı');
+                window.conversations[convKey] = {
+                    id: newId,
+                    adId,
+                    sellerId,
+                    buyerId: user.id,
+                    sellerName: ad.seller || 'Satıcı',
+                    buyerName: user.name || 'Alıcı',
+                    adTitle: ad.title,
+                    sellerConfirmed: false,
+                    buyerConfirmed: false,
+                    rated: false,
+                    messages: [],
+                    lastMsgTime: Date.now()
+                };
+                window.closeDetailModal();
+                await window.openMessagingModal(convKey);
+            } catch (err) {
+                showToast(err?.error || err?.message || 'Mesaj başlatılamadı', 'error', 2500);
+            }
+        })();
+        return;
+    }
+
     if (!window.conversations[convKey]) {
         window.conversations[convKey] = {
             adId, sellerId, buyerId: user.id,
@@ -4901,6 +5228,26 @@ function sendMessage() {
     if (!text) return;
     const c = window.conversations[convKey];
     if (!c) return;
+
+    if (useLiveApi() && c.id && window.AlsatAPI?.sendMessage) {
+        (async function() {
+            try {
+                await window.AlsatAPI.sendMessage(c.id, text);
+                const msgs = await window.AlsatAPI.getConversationMessages(c.id);
+                c.messages = (msgs || []).map(m => ({ from: m.from_user_id, text: m.text, time: m.time, read_at: m.read_at }));
+                c.lastMsgTime = Date.now();
+                input.value = '';
+                selectConversation(convKey);
+                await refreshMessagingUnread();
+                const u3 = getCurrentUser();
+                if (u3) renderConversationList(u3);
+            } catch (err) {
+                showToast(err?.error || err?.message || 'Gönderilemedi', 'error', 2500);
+            }
+        })();
+        return;
+    }
+
     c.messages = c.messages || [];
     c.messages.push({ from: user.id, text, time: Date.now() });
     c.lastMsgTime = Date.now();
@@ -5900,6 +6247,12 @@ document.addEventListener('DOMContentLoaded', async function() {
     if (window.API_BASE && window.AlsatAPI) {
         try {
             await ensureLoggedInUser();
+            if (useLiveApi() && window.AlsatAPI.fetchSiteSettings) {
+                try {
+                    window.__ALSAT_SITE_SETTINGS_SERVER = await window.AlsatAPI.fetchSiteSettings();
+                    if (typeof window.refreshAdminSettingsFromServer === 'function') window.refreshAdminSettingsFromServer();
+                } catch (e) {}
+            }
             const ads = await window.AlsatAPI.fetchAdsFull();
             window.adsDatabase = window.AlsatAPI.normalizeAds(Array.isArray(ads) ? ads : []);
             saveAdsDatabase();
@@ -5925,9 +6278,22 @@ document.addEventListener('DOMContentLoaded', async function() {
                 } catch (e) {}
                 const apiFavs = await window.AlsatAPI.getFavorites(cur.id);
                 if (Array.isArray(apiFavs)) window.favorites = apiFavs;
+                if (useLiveApi()) {
+                    try {
+                        await refreshMessagingUnread();
+                        startMessagingUnreadPolling();
+                    } catch (e) {}
+                }
             }
         } catch (e) { console.warn('Alsat API yüklenemedi:', e); }
     }
+    el('msg-search')?.addEventListener('input', function() {
+        const q = (this.value || '').trim().toLowerCase();
+        qsa('#conversations .conv-item').forEach(function(item) {
+            const t = (item.textContent || '').toLowerCase();
+            item.style.display = !q || t.indexOf(q) >= 0 ? '' : 'none';
+        });
+    });
     document.addEventListener('click', function(e) {
         const btn = e.target.closest('.alsat-store-nav .alsat-nav-item');
         if (!btn || !el('stores-page') || el('stores-page').style.display !== 'block') return;
@@ -6271,7 +6637,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         if (ta) { ta.select(); navigator.clipboard?.writeText(ta.value); showToast('saved', 'success', 1500); }
     });
     el('adm-approve-confirm')?.addEventListener('click', function() { window.closeAdminApproveModal(); });
-    el('admin-save-settings')?.addEventListener('click', function() {
+    el('admin-save-settings')?.addEventListener('click', async function() {
         if (!isAdmin()) return;
         var cur = getSiteSettings();
         var num = function(val, def) { var n = parseInt(val, 10); return isNaN(n) ? def : n; };
@@ -6297,6 +6663,19 @@ document.addEventListener('DOMContentLoaded', async function() {
             sellerAppMsgConfirm: (el('adm-seller-msg-confirm')?.value || '').trim() || (cur.sellerAppMsgConfirm || '')
         };
         var s = { ...cur, ...updated, premiumPrices: { ...cur.premiumPrices, ...updated.premiumPrices } };
+        if (useLiveApi() && window.AlsatAPI?.putAdminSiteSettings && window.AlsatAPI.isLoggedIn?.()) {
+            try {
+                await window.AlsatAPI.putAdminSiteSettings(s);
+                window.__ALSAT_SITE_SETTINGS_SERVER = s;
+                try { localStorage.setItem('alsat_site_settings', JSON.stringify(s)); } catch (e2) {}
+                updatePremiumLabels();
+                showToast('saved', 'success', 2000);
+            } catch (e) {
+                console.error('Site ayarları sunucuya yazılamadı:', e);
+                showToast('Sunucuya kaydedilemedi (yönetici oturumu gerekli)', 'error', 3000);
+            }
+            return;
+        }
         try {
             localStorage.setItem('alsat_site_settings', JSON.stringify(s));
             updatePremiumLabels();
@@ -6868,27 +7247,38 @@ document.addEventListener('DOMContentLoaded', async function() {
         });
         this.value = '';
     });
-    el('rating-form')?.addEventListener('submit', function(e) {
+    el('rating-form')?.addEventListener('submit', async function(e) {
         e.preventDefault();
         const adId = parseInt(el('rating-modal')?.dataset?.adId);
         if (!adId) return;
         const ad = window.adsDatabase.find(a => a.id === adId);
         const user = getCurrentUser();
+        const actives = document.querySelectorAll('#star-rating .star.active');
+        const stars = actives.length ? parseInt(actives[actives.length - 1]?.dataset?.value || 5) : 5;
+        const comment = el('rating-comment')?.value || '';
         if (ad && user) {
             const buyerId = user.id;
             const convKey = el('rating-modal')?.dataset?.convKey || Object.keys(window.conversations).find(k => {
                 const c = window.conversations[k];
                 return c.adId === adId && c.buyerId === buyerId && c.sellerConfirmed && c.buyerConfirmed;
             });
-            if (convKey && window.conversations[convKey]) window.conversations[convKey].rated = true;
-            saveConversations();
-            const actives = document.querySelectorAll('#star-rating .star.active');
-            const stars = actives.length ? parseInt(actives[actives.length - 1]?.dataset?.value || 5) : 5;
-            const comment = el('rating-comment')?.value || '';
-            const photos = (window.ratingPhotoData || []).slice(0, 3);
-            window.userRatings[ad.userId || 'anon'] = window.userRatings[ad.userId || 'anon'] || [];
-            window.userRatings[ad.userId || 'anon'].push({ from: buyerId, stars: stars || 5, comment, photos, adId });
-            localStorage.setItem('userRatings', JSON.stringify(window.userRatings));
+            const convId = parseInt(el('rating-modal')?.dataset?.conversationId, 10) || (convKey && window.conversations[convKey] && window.conversations[convKey].id);
+            if (useLiveApi() && window.AlsatAPI?.submitRating && convId && ad.userId) {
+                try {
+                    await window.AlsatAPI.submitRating(ad.userId, adId, convId, stars, comment);
+                    if (convKey && window.conversations[convKey]) window.conversations[convKey].rated = true;
+                } catch (err) {
+                    showToast(err?.error || err?.message || 'Puan gönderilemedi', 'error', 2500);
+                    return;
+                }
+            } else {
+                if (convKey && window.conversations[convKey]) window.conversations[convKey].rated = true;
+                saveConversations();
+                const photos = (window.ratingPhotoData || []).slice(0, 3);
+                window.userRatings[ad.userId || 'anon'] = window.userRatings[ad.userId || 'anon'] || [];
+                window.userRatings[ad.userId || 'anon'].push({ from: buyerId, stars: stars || 5, comment, photos, adId });
+                localStorage.setItem('userRatings', JSON.stringify(window.userRatings));
+            }
         }
         showToast('ratingSent', 'success', 2000);
         window.closeRatingModal();
