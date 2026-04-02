@@ -1115,7 +1115,73 @@ window.openAdminPage = function() {
     if (prBadge) prBadge.textContent = (window.storeProductRequests || []).filter(r => r.status === 'pending').length;
     updateAdminStats();
     renderAdminAds();
+    startAdminRealtimeSync();
 };
+
+let __adminRealtimeTimer = null;
+let __adminRealtimeInFlight = false;
+function startAdminRealtimeSync() {
+    if (__adminRealtimeTimer) return;
+    const tick = async () => {
+        if (__adminRealtimeInFlight) return;
+        if (!isAdmin() || el('admin-page')?.style.display !== 'block') return;
+        if (!window.API_BASE || !window.AlsatAPI) return; // local mod: localStorage
+        __adminRealtimeInFlight = true;
+        try {
+            const [ads, users, reports, online] = await Promise.all([
+                window.AlsatAPI.fetchAdsFull(),
+                window.AlsatAPI.fetchUsers(),
+                window.AlsatAPI.getAdminReports(),
+                window.AlsatAPI.getOnlineUsers()
+            ]);
+            if (Array.isArray(ads)) {
+                window.adsDatabase = window.AlsatAPI.normalizeAds(ads);
+                saveAdsDatabase();
+            }
+            if (users && typeof users === 'object') {
+                window.usersDatabase = users;
+                saveUsersDatabase();
+            }
+            if (Array.isArray(reports)) {
+                // backend format → ui format
+                window.reportsDatabase = reports.map(r => ({
+                    id: r.id,
+                    adId: r.ad_id,
+                    reason: r.reason || '',
+                    reporterId: r.user_id,
+                    reporterName: r.reporter_email || '',
+                    adTitle: r.ad_title || '',
+                    createdAt: r.created_at || new Date().toISOString(),
+                    status: 'open'
+                }));
+                saveReports();
+            }
+            window.__adminOnlineCache = online || { total: 0, uniqueIps: 0, users: [] };
+
+            updateAdminStats();
+            renderAdminAds();
+            // aktif tabı tekrar çiz
+            const activeTab = document.querySelector('.admin-tab-btn.active')?.dataset?.adminTab || 'stats';
+            if (activeTab === 'pending') renderAdminPending();
+            if (activeTab === 'users') renderAdminUsers();
+            if (activeTab === 'reports') renderAdminReports();
+            if (activeTab === 'analytics') renderAdminAnalytics();
+            if (activeTab === 'online') renderAdminOnlineUsers();
+        } catch (e) {
+            // sessiz geç
+        } finally {
+            __adminRealtimeInFlight = false;
+        }
+    };
+    tick();
+    __adminRealtimeTimer = setInterval(tick, 5000);
+}
+
+function stopAdminRealtimeSync() {
+    if (__adminRealtimeTimer) clearInterval(__adminRealtimeTimer);
+    __adminRealtimeTimer = null;
+    __adminRealtimeInFlight = false;
+}
 
 function ensureUsersFromData() {
     const ids = getAllUserIds();
@@ -1161,6 +1227,18 @@ function renderAdminReports() {
 
 function adminResolveReport(reportId) {
     if (!isAdmin()) return;
+    // API modunda backend kaydını sil (dismiss)
+    if (window.API_BASE && window.AlsatAPI?.adminReportAction) {
+        window.AlsatAPI.adminReportAction(reportId, 'dismiss')
+            .then(() => {
+                window.reportsDatabase = (window.reportsDatabase || []).filter(x => String(x.id) !== String(reportId));
+                saveReports();
+                addAdminAudit('report_resolved', (typeof t('reportResolvedWithId') === 'string' ? t('reportResolvedWithId').replace('{0}', reportId) : t('reportResolved')));
+                renderAdminReports(); renderAdminAnalytics(); showToast('saved', 'success', 2000);
+            })
+            .catch(() => showToast('İşlem başarısız', 'error', 2000));
+        return;
+    }
     const r = (window.reportsDatabase || []).find(x => String(x.id) === String(reportId));
     if (r) { r.status = 'resolved'; saveReports(); addAdminAudit('report_resolved', (typeof t('reportResolvedWithId') === 'string' ? t('reportResolvedWithId').replace('{0}', reportId) : t('reportResolved'))); renderAdminReports(); renderAdminAnalytics(); showToast('saved', 'success', 2000); }
 }
@@ -1597,8 +1675,20 @@ window.adminApproveAd = function(adId) {
     const ad = window.adsDatabase.find(a => a.id === adId);
     if (!ad || (ad.status || '') !== 'pending') return;
     addAdminAudit('ad_approved', 'İlan #' + adId + ' onaylandı: ' + (ad.title||'').slice(0,40));
-    ad.status = 'approved';
-    saveAdsDatabase();
+    if (window.API_BASE && window.AlsatAPI?.adminSetAdStatus) {
+        window.AlsatAPI.adminSetAdStatus(adId, 'approved')
+            .then(() => {
+                ad.status = 'approved';
+                saveAdsDatabase();
+                updateAdminStats();
+                renderAdminPending();
+                applyFilters();
+            })
+            .catch(() => showToast('Onay başarısız', 'error', 2000));
+    } else {
+        ad.status = 'approved';
+        saveAdsDatabase();
+    }
     if (ad.userId) addNotification(ad.userId, 'ad_approved', 'İlan onaylandı', '"' + ad.title + '" ilanınız yayına alındı.', { adId });
     updateAdminStats();
     renderAdminPending();
@@ -5794,6 +5884,7 @@ document.addEventListener('DOMContentLoaded', async function() {
     });
     el('back-admin-btn')?.addEventListener('click', function() {
         el('admin-page').style.display = 'none';
+        stopAdminRealtimeSync();
     });
     el('admin-reset-ads')?.addEventListener('click', function() {
         if (!isAdmin()) return;

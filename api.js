@@ -102,6 +102,34 @@
       } catch (e) { return null; }
     },
 
+    async fetchAdminAds(status) {
+      if (!base()) return null;
+      try {
+        const qs = status ? ('?status=' + encodeURIComponent(status)) : '';
+        return await fetchJson(base() + '/api/admin/ads' + qs, {
+          method: 'GET',
+          headers: getAuthHeaders()
+        });
+      } catch (e) { return null; }
+    },
+
+    async adminSetAdStatus(adId, status) {
+      if (!base()) return null;
+      return fetchJson(base() + '/api/admin/ads/' + adId + '/status', {
+        method: 'PATCH',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({ status })
+      });
+    },
+
+    async adminDeleteAd(adId) {
+      if (!base()) return null;
+      return fetchJson(base() + '/api/admin/ads/' + adId, {
+        method: 'DELETE',
+        headers: getAuthHeaders()
+      });
+    },
+
     async fetchAds(params = {}) {
       if (!base()) return null;
       try {
@@ -393,6 +421,20 @@
         if (adminToken) headers['X-Admin-Token'] = adminToken;
         return await fetch(base() + '/api/admin/reports', { headers }).then(r => r.json());
       } catch (e) { return []; }
+    },
+
+    async adminReportAction(reportId, action, adminToken) {
+      if (!base()) return null;
+      const headers = { 'Content-Type': 'application/json' };
+      if (adminToken) headers['X-Admin-Token'] = adminToken;
+      const res = await fetch(base() + '/api/admin/reports/' + reportId + '/action', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ action })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || res.statusText);
+      return data;
     },
 
     async resetAll(token) {

@@ -871,6 +871,14 @@ if (uploadMiddleware) {
 }
 
 // ========== ADMIN ==========
+function requireAdminJwt(req, res, next) {
+  const em = (req.user?.email || '').toLowerCase().trim();
+  if (!em || em !== (config.admin.email || '').toLowerCase().trim()) {
+    return res.status(403).json({ error: 'Yetkisiz' });
+  }
+  next();
+}
+
 app.post('/api/admin/reset', async (req, res, next) => {
   if (config.admin.resetToken && req.headers['x-admin-token'] !== config.admin.resetToken) {
     return res.status(403).json({ error: 'Yetkisiz' });
@@ -953,6 +961,57 @@ app.post('/api/admin/reports/:id/action', async (req, res, next) => {
       await db.runAsync(d, dp);
       audit('ad_rejected_by_report', { adId: report.ad_id, reportId });
     }
+    res.json({ ok: true });
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Admin ilan yönetimi (JWT admin)
+app.get('/api/admin/ads', jwtMiddleware, requireAdminJwt, async (req, res, next) => {
+  try {
+    const status = (req.query.status || '').trim();
+    const allowed = ['pending', 'approved', 'rejected'];
+    let sql = 'SELECT * FROM ads';
+    const params = [];
+    if (status && allowed.includes(status)) {
+      sql += ' WHERE status = ?';
+      params.push(status);
+    }
+    sql += ' ORDER BY id DESC LIMIT 500';
+    const { sql: s, params: p } = paramStyle(sql, params);
+    const rows = await db.queryAsync(s, p);
+    res.json(rows.map(parseAdRow));
+  } catch (e) {
+    next(e);
+  }
+});
+
+app.patch('/api/admin/ads/:id/status', jwtMiddleware, requireAdminJwt, async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    const status = String(req.body?.status || '').trim();
+    if (!['pending', 'approved', 'rejected'].includes(status)) {
+      return res.status(400).json({ error: 'Geçersiz status' });
+    }
+    const { sql: u, params: up } = paramStyle('UPDATE ads SET status = ? WHERE id = ?', [status, id]);
+    await db.runAsync(u, up);
+    audit('admin_ad_status', { adId: id, status, admin: req.user?.email });
+    res.json({ ok: true });
+  } catch (e) {
+    next(e);
+  }
+});
+
+app.delete('/api/admin/ads/:id', jwtMiddleware, requireAdminJwt, async (req, res, next) => {
+  try {
+    const id = parseInt(req.params.id, 10);
+    // bağlı kayıtlar temizle
+    try { const { sql: f1, params: p1 } = paramStyle('DELETE FROM favorites WHERE ad_id = ?', [id]); await db.runAsync(f1, p1); } catch (e) {}
+    try { const { sql: r1, params: pr } = paramStyle('DELETE FROM ad_reports WHERE ad_id = ?', [id]); await db.runAsync(r1, pr); } catch (e) {}
+    const { sql: d, params: dp } = paramStyle('DELETE FROM ads WHERE id = ?', [id]);
+    await db.runAsync(d, dp);
+    audit('admin_ad_deleted', { adId: id, admin: req.user?.email });
     res.json({ ok: true });
   } catch (e) {
     next(e);
