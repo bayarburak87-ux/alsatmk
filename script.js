@@ -993,9 +993,9 @@ function setCurrentUser(user, remember) {
 }
 
 /**
- * API modunda JWT varken oturum nesnesi (sessionStorage) silinmiş olabilir; /api/auth/me ile doldurur.
- * Ayrıca: ekranda "girişli" görünüp alsat_token yoksa (eski oturum / süresi dolmuş JWT) kalan sahte kullanıcıyı temizler;
- * aksi halde ilan verirken önce ensureLoggedInUser geçer, sonra isLoggedIn() false kalıp "Giriş yapınız" çıkıyordu.
+ * API modunda JWT varken oturum nesnesi silinmiş olabilir; /api/auth/me ile doldurur.
+ * Access token yoksa önce refresh token ile yeniler — aksi halde sayfa yenilenince admin menüsü kayboluyordu.
+ * Oturum + token tamamen uyumsuzsa (sahte kalıntı) temizlenir.
  */
 async function ensureLoggedInUser() {
     if (!window.API_BASE || !window.AlsatAPI || typeof window.AlsatAPI.isLoggedIn !== 'function') {
@@ -1003,6 +1003,21 @@ async function ensureLoggedInUser() {
     }
     let u = getCurrentUser();
     if (u && !window.AlsatAPI.isLoggedIn()) {
+        if (typeof window.AlsatAPI.tryRefreshSession === 'function') {
+            const refreshed = await window.AlsatAPI.tryRefreshSession();
+            if (refreshed) {
+                try {
+                    const me = await window.AlsatAPI.me();
+                    if (me && me.id) {
+                        getOrCreateUser(me.id, me.email, me.name, me.phone || '');
+                        const persist = !!(localStorage.getItem('alsat_currentUser') || localStorage.getItem('alsat_token'));
+                        setCurrentUser({ id: me.id, email: me.email, name: me.name, isAdmin: !!me.isAdmin }, persist);
+                        if (typeof updateHeaderUI === 'function') updateHeaderUI();
+                        return getCurrentUser();
+                    }
+                } catch (err) {}
+            }
+        }
         sessionStorage.removeItem('alsat_currentUser');
         localStorage.removeItem('alsat_currentUser');
         if (window.userSession) window.userSession.user = null;

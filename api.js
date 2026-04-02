@@ -37,31 +37,41 @@
     return h;
   }
 
+  /** Access token yok veya süresi dolmuşsa refresh ile yeni JWT al (sayfa yenilemede admin oturumu düşmesin). */
+  async function tryRefreshSession() {
+    const refresh = localStorage.getItem(REFRESH_KEY);
+    if (!refresh || !base()) return false;
+    try {
+      const r = await fetch(base() + '/api/auth/refresh', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken: refresh })
+      });
+      const j = await r.json().catch(() => ({}));
+      if (j.token) {
+        setToken(j.token);
+        return true;
+      }
+      setToken(null);
+      setRefreshToken(null);
+    } catch (e) {
+      setToken(null);
+      setRefreshToken(null);
+    }
+    return false;
+  }
+
   async function fetchJson(url, opts = {}) {
     opts.headers = { ...getAuthHeaders(), ...(opts.headers || {}) };
-    const res = await fetch(url, opts);
-    const data = await res.json().catch(() => ({}));
-    if (res.status === 401 && data.error && data.error.includes('token')) {
-      const refresh = localStorage.getItem(REFRESH_KEY);
-      if (refresh) {
-        try {
-          const r = await fetch(base() + '/api/auth/refresh', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ refreshToken: refresh })
-          });
-          const j = await r.json();
-          if (j.token) {
-            setToken(j.token);
-            opts.headers['Authorization'] = 'Bearer ' + j.token;
-            const retry = await fetch(url, opts);
-            const retryData = await retry.json().catch(() => ({}));
-            if (!retry.ok) throw new Error(retryData.error || retry.statusText);
-            return retryData;
-          }
-        } catch (e) {}
-        setToken(null);
-        setRefreshToken(null);
+    let res = await fetch(url, opts);
+    let data = await res.json().catch(() => ({}));
+    // Her 401'de (Token gerekli / Geçersiz token vb.) refresh dene — eskiden sadece error.includes('token') küçük harfle eşleşince deniyordu, "Token gerekli" kaçıyordu.
+    if (res.status === 401 && localStorage.getItem(REFRESH_KEY)) {
+      const ok = await tryRefreshSession();
+      if (ok) {
+        opts.headers = { ...getAuthHeaders(), ...(opts.headers || {}) };
+        res = await fetch(url, opts);
+        data = await res.json().catch(() => ({}));
       }
     }
     if (!res.ok) {
@@ -76,6 +86,7 @@
     getToken,
     setToken,
     setRefreshToken,
+    tryRefreshSession,
     isLoggedIn() {
       return !!getToken();
     },

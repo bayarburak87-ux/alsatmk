@@ -7,6 +7,7 @@
     "start": "node server.js",
     "dev": "node server.js",
     "db:init": "node db/init.js",
+    "admin:ensure": "node scripts/ensure-admin.js",
     "test": "jest --testPathIgnorePatterns=node_modules",
     "cron:search-alerts": "node jobs/search-alert-cron.js",
     "cron:price-alerts": "node jobs/price-alert-cron.js",
