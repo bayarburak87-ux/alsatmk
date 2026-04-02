@@ -16,7 +16,8 @@ describe('Alsat API', () => {
   it('GET /api/health returns status', async () => {
     const res = await request(app).get('/api/health');
     expect(res.status).toBe(200);
-    expect(res.body).toHaveProperty('status');
+    expect(res.body).toHaveProperty('ok', true);
+    expect(res.body).toHaveProperty('db', true);
   });
 
   it('GET /api/ads returns array or items', async () => {

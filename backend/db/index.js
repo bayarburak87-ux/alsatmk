@@ -1,9 +1,10 @@
 /**
  * Veritabanı adaptörü - PostgreSQL, MySQL veya SQLite
- * DB_DRIVER=postgres | mysql | sqlite
+ * DB_DRIVER=postgres | mysql | sqlite — yoksa DATABASE_URL şemasından çıkarılır (config.js)
  */
 require('dotenv').config();
-const driver = process.env.DB_DRIVER || 'sqlite';
+const config = require('../config');
+const driver = config.db.driver;
 
 let db;
 

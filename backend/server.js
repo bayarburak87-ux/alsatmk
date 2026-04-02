@@ -115,6 +115,17 @@ app.get('/api/ping', (req, res) => {
   res.json({ ok: true, ts: Date.now() });
 });
 
+/** DB bağlantısı yoksa /api/public/* ve auth uçları 500 verir; Railway’de teşhis için. */
+app.get('/api/health', async (req, res) => {
+  try {
+    await db.queryAsync('SELECT 1', []);
+    res.json({ ok: true, db: true, driver: config.db.driver || driver });
+  } catch (e) {
+    logger.error('[health] database: ' + (e.message || e));
+    res.status(503).json({ ok: false, db: false, driver: config.db.driver || driver });
+  }
+});
+
 // SQLite tabloları
 if (isSqlite) {
   const Database = require('better-sqlite3');
@@ -155,11 +166,21 @@ function insertReturningId(sql, params) {
   return result;
 }
 
+function safeJsonField(val, fallback) {
+  if (val == null || val === '') return fallback;
+  if (typeof val !== 'string') return val;
+  try {
+    return JSON.parse(val);
+  } catch (e) {
+    return fallback;
+  }
+}
+
 function parseAdRow(r) {
   const o = { ...r };
-  if (typeof o.images === 'string') o.images = o.images ? JSON.parse(o.images) : [];
-  if (typeof o.attrs === 'string') o.attrs = o.attrs ? JSON.parse(o.attrs) : null;
-  if (typeof o.price_history === 'string') o.priceHistory = o.price_history ? JSON.parse(o.price_history) : null;
+  if (typeof o.images === 'string') o.images = safeJsonField(o.images, []);
+  if (typeof o.attrs === 'string') o.attrs = safeJsonField(o.attrs, null);
+  if (typeof o.price_history === 'string') o.priceHistory = safeJsonField(o.price_history, null);
   return o;
 }
 

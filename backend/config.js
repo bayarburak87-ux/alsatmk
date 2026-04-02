@@ -3,13 +3,23 @@
  */
 require('dotenv').config();
 
+/** Railway'de çoğu zaman sadece DATABASE_URL verilir; DB_DRIVER yoksa sqlite sanılıp Postgres'e hiç bağlanılmazdı. */
+function inferDbDriver() {
+  const explicit = (process.env.DB_DRIVER || '').trim().toLowerCase();
+  if (explicit === 'postgres' || explicit === 'mysql' || explicit === 'sqlite') return explicit;
+  const url = (process.env.DATABASE_URL || '').trim();
+  if (/^postgres(ql)?:\/\//i.test(url)) return 'postgres';
+  if (/^mysql2?:\/\//i.test(url)) return 'mysql';
+  return 'sqlite';
+}
+
 module.exports = {
   port: parseInt(process.env.PORT, 10) || 3001,
   nodeEnv: process.env.NODE_ENV || 'development',
   isDev: (process.env.NODE_ENV || 'development') === 'development',
 
   db: {
-    driver: process.env.DB_DRIVER || 'sqlite',
+    driver: inferDbDriver(),
     url: process.env.DATABASE_URL
   },
 

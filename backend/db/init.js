@@ -1,12 +1,13 @@
 /**
  * Veritabanı şemasını oluşturur
- * Kullanım: DB_DRIVER=postgres npm run db:init
+ * Kullanım: DATABASE_URL ile npm run db:init (DB_DRIVER opsiyonel)
  */
 require('dotenv').config();
 const fs = require('fs');
 const path = require('path');
+const config = require('../config');
 
-const driver = process.env.DB_DRIVER || 'sqlite';
+const driver = config.db.driver;
 
 async function init() {
   if (driver === 'postgres') {
