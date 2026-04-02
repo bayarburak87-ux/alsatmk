@@ -163,14 +163,36 @@ async function sendViaSmtp(to, subject, html) {
   }
 }
 
+function wrapUnexpectedMailError(e) {
+  const known = ['MAIL_API_FAILED', 'SMTP_NOT_CONFIGURED', 'SMTP_SEND_FAILED'];
+  if (e && known.includes(e.code)) return e;
+  const raw = String(e && e.message ? e.message : e || '');
+  const code = e && e.code;
+  const msg =
+    e && e.name === 'AbortError'
+      ? 'E-posta servisine bağlantı zaman aşımı. Lütfen tekrar deneyin.'
+      : /fetch failed|ECONNRESET|ENOTFOUND|ETIMEDOUT|ECONNREFUSED|EAI_AGAIN|certificate|TLS|getaddrinfo/i.test(raw + String(code || ''))
+        ? 'E-posta sunucusuna ulaşılamadı. İnternetinizi kontrol edin; bir süre sonra tekrar deneyin.'
+        : 'E-posta gönderilemedi: ' + (raw || 'bilinmeyen hata');
+  const err = new Error(msg);
+  err.code = 'MAIL_SEND_FAILED';
+  err.status = 503;
+  err.cause = e;
+  return err;
+}
+
 async function sendMail(to, subject, html) {
-  if ((process.env.RESEND_API_KEY || '').trim()) {
-    return sendViaResend(to, subject, html);
+  try {
+    if ((process.env.RESEND_API_KEY || '').trim()) {
+      return await sendViaResend(to, subject, html);
+    }
+    if ((process.env.SENDGRID_API_KEY || '').trim()) {
+      return await sendViaSendGrid(to, subject, html);
+    }
+    return await sendViaSmtp(to, subject, html);
+  } catch (e) {
+    throw wrapUnexpectedMailError(e);
   }
-  if ((process.env.SENDGRID_API_KEY || '').trim()) {
-    return sendViaSendGrid(to, subject, html);
-  }
-  return sendViaSmtp(to, subject, html);
 }
 
 function sendVerificationCode(email, code, type) {
