@@ -61,12 +61,20 @@
     return false;
   }
 
+  /** Şifre / kod ile giriş uçları: 401 = yanlış bilgi; refresh denemek yanlış (ve gereksiz istek üretir). */
+  function isAuthCredentialEndpoint(url) {
+    return /\/api\/auth\/(login|register|send-code|verify-register|verify-forgot)/.test(url || '');
+  }
+
   async function fetchJson(url, opts = {}) {
     opts.headers = { ...getAuthHeaders(), ...(opts.headers || {}) };
     let res = await fetch(url, opts);
     let data = await res.json().catch(() => ({}));
-    // Her 401'de (Token gerekli / Geçersiz token vb.) refresh dene — eskiden sadece error.includes('token') küçük harfle eşleşince deniyordu, "Token gerekli" kaçıyordu.
-    if (res.status === 401 && localStorage.getItem(REFRESH_KEY)) {
+    if (
+      res.status === 401 &&
+      localStorage.getItem(REFRESH_KEY) &&
+      !isAuthCredentialEndpoint(url)
+    ) {
       const ok = await tryRefreshSession();
       if (ok) {
         opts.headers = { ...getAuthHeaders(), ...(opts.headers || {}) };
@@ -199,11 +207,18 @@
       if (!base()) return null;
       const body = { email, password };
       if (recaptchaToken) body.recaptchaToken = recaptchaToken;
-      const r = await fetchJson(base() + '/api/auth/login', {
+      // Giriş isteğinde eski JWT göndermeyin — fetchJson + refresh karışmasın; yanlış şifrede tek net 401.
+      const res = await fetch(base() + '/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body)
       });
+      const r = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const err = new Error(r.error || res.statusText);
+        err.error = r.error;
+        throw err;
+      }
       if (r.token) setToken(r.token);
       if (r.refreshToken) setRefreshToken(r.refreshToken);
       return r;
