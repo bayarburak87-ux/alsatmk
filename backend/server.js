@@ -974,10 +974,19 @@ app.get('/api/health', async (req, res) => {
     await db.queryAsync('SELECT 1');
     dbOk = true;
   } catch (e) {}
+  const hasResend = !!(process.env.RESEND_API_KEY || '').trim();
+  const hasSendgrid = !!(process.env.SENDGRID_API_KEY || '').trim();
+  const hasSmtp = !!(process.env.SMTP_PASS || '').replace(/\s+/g, '');
+  let emailMode = 'none';
+  if (hasResend) emailMode = 'resend';
+  else if (hasSendgrid) emailMode = 'sendgrid';
+  else if (hasSmtp) emailMode = 'smtp';
+
   res.json({
     status: dbOk ? 'ok' : 'degraded',
     db: driver,
     dbOk,
+    emailMode,
     uptime: process.uptime(),
     memory: process.memoryUsage()
   });
