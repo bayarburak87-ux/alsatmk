@@ -1879,8 +1879,20 @@
     <script src="car-data.js"></script>
     <script src="stores-data.js"></script>
     <script src="jobs-data.js"></script>
-    <!-- API: Backend Railway -->
-    <script>window.ALSAT_API_URL='https://alsatmk-production-66c2.up.railway.app';</script>
+    <!-- API: localhost → 3001; Railway tek serviste → aynı host; Vercel/alsatmk.com → API Railway URL (farklı domain) -->
+    <script>
+    (function(){
+        var h = location.hostname || '';
+        var railwayApi = 'https://alsatmk-production-66c2.up.railway.app';
+        if (h === 'localhost' || h === '127.0.0.1') {
+            window.ALSAT_API_URL = 'http://localhost:3001';
+        } else if (h.indexOf('railway.app') >= 0) {
+            window.ALSAT_API_URL = location.protocol + '//' + location.host;
+        } else {
+            window.ALSAT_API_URL = railwayApi;
+        }
+    })();
+    </script>
     <script>
     (function(){
         var h=location.hostname||'';

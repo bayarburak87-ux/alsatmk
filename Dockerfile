@@ -11,6 +11,10 @@ RUN npm install --omit=dev
 
 COPY backend/ .
 
+# Tek konteynerde tam site (Railway domain’inde ana sayfa açılsın)
+RUN mkdir -p static
+COPY index.html style.css script.js api.js translations.js sw.js stores-data.js jobs-data.js car-data.js terms-content.js static/
+
 ENV NODE_ENV=production
 
 CMD ["node", "server.js"]
