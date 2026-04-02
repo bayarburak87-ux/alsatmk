@@ -4,6 +4,7 @@
  */
 require('dotenv').config();
 const express = require('express');
+const fs = require('fs');
 const cors = require('cors');
 const helmet = require('helmet');
 const path = require('path');
@@ -1004,8 +1005,11 @@ const swaggerSpec = swaggerJsdoc({
 });
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, { explorer: true }));
 
-// Frontend - siteyi backend ile birlikte sun (http://localhost:3001)
-app.use(express.static(path.join(__dirname, '..'), { index: 'index.html' }));
+// Frontend - repo kökünde index.html varsa sun (Docker’da sadece backend kopyalanıyorsa atlanır)
+const siteRoot = path.join(__dirname, '..');
+if (fs.existsSync(path.join(siteRoot, 'index.html'))) {
+  app.use(express.static(siteRoot, { index: 'index.html' }));
+}
 
 app.use(notFound);
 app.use(errorHandler);

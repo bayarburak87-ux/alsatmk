@@ -1,5 +1,8 @@
-# Repo kökünden build — Railway'de Root Directory ayarına gerek kalmaz
-FROM node:20-alpine
+# Repo kökünden build — Railway'de sadece backend klasörü imaja kopyalanır
+FROM node:20-bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends python3 make g++ \
+  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -8,9 +11,6 @@ RUN npm install --omit=dev
 
 COPY backend/ .
 
-EXPOSE 3001
-
 ENV NODE_ENV=production
-ENV PORT=3001
 
 CMD ["node", "server.js"]
