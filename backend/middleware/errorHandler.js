@@ -7,7 +7,7 @@ const { logger } = require('../logger');
 function errorHandler(err, req, res, next) {
   logger.error(err.stack || err.message);
   const status = err.status || 500;
-  const publicCodes = ['SMTP_NOT_CONFIGURED', 'SMTP_SEND_FAILED'];
+  const publicCodes = ['SMTP_NOT_CONFIGURED', 'SMTP_SEND_FAILED', 'MAIL_API_FAILED'];
   const message =
     config.isDev || (err.code && publicCodes.includes(err.code))
       ? err.message

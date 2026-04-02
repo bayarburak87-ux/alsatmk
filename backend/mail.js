@@ -1,13 +1,108 @@
 /**
- * E-posta gönderimi - info@alsatmk.com (nodemailer)
- * .env: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS
- * Gmail uygulama şifreleri genelde boşluklu verilir; boşluklar otomatik temizlenir.
+ * E-posta gönderimi
+ *
+ * Railway / benzeri ortamlarda çıkış SMTP (587/465) çoğu planda engellidir — bağlantı zaman aşımı görürsünüz.
+ * Bu yüzden öncelik: HTTPS API (Resend veya SendGrid), yedek: nodemailer + SMTP.
+ *
+ * .env:
+ *   RESEND_API_KEY=re_...     (önerilir, https://resend.com)
+ *   veya SENDGRID_API_KEY=SG... (SendGrid)
+ *   RESEND_FROM="Alsat <noreply@sizin-domain.com>"  (Resend panelinde doğrulanmış gönderen)
+ *   SMTP_* — sadece SMTP’nin izin verildiği sunucularda
  */
 const nodemailer = require('nodemailer');
 const config = require('./config');
 
 function smtpPassRaw() {
   return (process.env.SMTP_PASS || '').replace(/\s+/g, '');
+}
+
+function hasHttpMail() {
+  return !!((process.env.RESEND_API_KEY || '').trim() || (process.env.SENDGRID_API_KEY || '').trim());
+}
+
+function hasSmtpMail() {
+  return !!smtpPassRaw();
+}
+
+function hasMailTransport() {
+  return hasHttpMail() || hasSmtpMail();
+}
+
+/** "Alsat" <a@b.com> veya <a@b.com> veya düz adres */
+function parseFromHeader() {
+  const raw = process.env.RESEND_FROM || process.env.MAIL_FROM || '"Alsat" <info@alsatmk.com>';
+  const m = raw.match(/^"(.+)"\s*<([^>]+)>/);
+  if (m) return { name: m[1], email: m[2].trim() };
+  const m2 = raw.match(/<([^>]+)>/);
+  if (m2) return { name: 'Alsat', email: m2[1].trim() };
+  return { name: 'Alsat', email: raw.replace(/"/g, '').trim() };
+}
+
+function fromString() {
+  const { name, email } = parseFromHeader();
+  return `${name} <${email}>`;
+}
+
+const FETCH_TIMEOUT_MS = parseInt(process.env.EMAIL_API_TIMEOUT_MS || '25000', 10);
+
+async function fetchWithTimeout(url, options) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...options, signal: ctrl.signal });
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+async function sendViaResend(to, subject, html) {
+  const key = (process.env.RESEND_API_KEY || '').trim();
+  if (!key) return null;
+  const from = process.env.RESEND_FROM ? process.env.RESEND_FROM.trim() : fromString();
+  const r = await fetchWithTimeout('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from, to: [to], subject, html })
+  });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const detail = j.message || j.name || (Array.isArray(j.errors) && j.errors[0]?.message) || JSON.stringify(j);
+    const err = new Error(detail || `Resend HTTP ${r.status}`);
+    err.code = 'MAIL_API_FAILED';
+    err.status = 503;
+    throw err;
+  }
+  return { ok: true, messageId: j.id || 'resend' };
+}
+
+async function sendViaSendGrid(to, subject, html) {
+  const key = (process.env.SENDGRID_API_KEY || '').trim();
+  if (!key) return null;
+  const { name, email } = parseFromHeader();
+  const r = await fetchWithTimeout('https://api.sendgrid.com/v3/mail/send', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      personalizations: [{ to: [{ email: to }] }],
+      from: { email, name },
+      subject,
+      content: [{ type: 'text/html', value: html }]
+    })
+  });
+  if (!r.ok) {
+    const text = await r.text().catch(() => '');
+    let msg = text;
+    try {
+      const j = JSON.parse(text);
+      msg = j.errors?.[0]?.message || j.message || text;
+    } catch (e) {}
+    const err = new Error(msg || `SendGrid HTTP ${r.status}`);
+    err.code = 'MAIL_API_FAILED';
+    err.status = 503;
+    throw err;
+  }
+  return { ok: true, messageId: r.headers.get('x-message-id') || 'sendgrid' };
 }
 
 function createTransport() {
@@ -29,21 +124,20 @@ function createTransport() {
   });
 }
 
-const FROM = process.env.MAIL_FROM || '"Alsat" <info@alsatmk.com>';
-
-async function sendMail(to, subject, html) {
+async function sendViaSmtp(to, subject, html) {
   const pass = smtpPassRaw();
   if (!pass) {
     if (config.isDev) {
       console.warn('[mail DEV] SMTP_PASS yok — e-posta gönderilmedi:', { to, subject });
       return { ok: true, messageId: 'dev-no-smtp' };
     }
-    console.error('SMTP_PASS tanımlı değil - e-posta gönderilemiyor. .env dosyasına SMTP ayarlarını ekleyin.');
-    const err = new Error('E-posta servisi yapılandırılmamış. Lütfen daha sonra tekrar deneyin.');
+    console.error('SMTP_PASS tanımlı değil - e-posta gönderilemiyor.');
+    const err = new Error('E-posta servisi yapılandırılmamış. Railway kullanıyorsanız RESEND_API_KEY ekleyin (SMTP çoğu planda engellenir).');
     err.code = 'SMTP_NOT_CONFIGURED';
     throw err;
   }
   const transporter = createTransport();
+  const FROM = process.env.MAIL_FROM || '"Alsat" <info@alsatmk.com>';
   try {
     const info = await transporter.sendMail({
       from: FROM,
@@ -53,10 +147,14 @@ async function sendMail(to, subject, html) {
     });
     return { ok: true, messageId: info.messageId };
   } catch (e) {
+    const msg = String(e.message || '');
+    const timedOut = /timeout|ETIMEDOUT|ECONNRESET|Connection timeout/i.test(msg + (e.code || ''));
     const err = new Error(
-      e.code === 'EAUTH' || /Invalid login|authentication failed/i.test(String(e.message || ''))
-        ? 'SMTP girişi başarısız. Gmail için Uygulama şifresi kullandığınızdan ve SMTP_USER / SMTP_PASS değerlerinin doğru olduğundan emin olun.'
-        : 'E-posta gönderilemedi: ' + (e.message || 'bilinmeyen hata')
+      e.code === 'EAUTH' || /Invalid login|authentication failed/i.test(msg)
+        ? 'SMTP girişi başarısız. Gmail için Uygulama şifresi kullandığınızdan emin olun.'
+        : timedOut
+          ? 'SMTP bağlantısı zaman aşımı. Railway ve benzeri ortamlarda 587/465 genelde engellenir — RESEND_API_KEY veya SENDGRID_API_KEY ile HTTPS üzerinden gönderin.'
+          : 'E-posta gönderilemedi: ' + (msg || 'bilinmeyen hata')
     );
     err.code = 'SMTP_SEND_FAILED';
     err.status = 503;
@@ -65,9 +163,19 @@ async function sendMail(to, subject, html) {
   }
 }
 
+async function sendMail(to, subject, html) {
+  if ((process.env.RESEND_API_KEY || '').trim()) {
+    return sendViaResend(to, subject, html);
+  }
+  if ((process.env.SENDGRID_API_KEY || '').trim()) {
+    return sendViaSendGrid(to, subject, html);
+  }
+  return sendViaSmtp(to, subject, html);
+}
+
 function sendVerificationCode(email, code, type) {
-  if (!smtpPassRaw() && config.isDev) {
-    console.warn(`[mail DEV] Doğrulama (${type}) → ${email}: kod = ${code} (SMTP_PASS yoksa bu kodla devam edin; yayında .env doldurun)`);
+  if (!hasMailTransport() && config.isDev) {
+    console.warn(`[mail DEV] Doğrulama (${type}) → ${email}: kod = ${code} (Yayında RESEND_API_KEY veya SMTP tanımlayın)`);
     return Promise.resolve({ ok: true, messageId: 'dev-code-logged' });
   }
   const isRegister = type === 'register';
