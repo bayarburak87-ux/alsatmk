@@ -1153,7 +1153,9 @@ window.openAdminPage = function() {
 
 let __adminRealtimeTimer = null;
 let __adminRealtimeInFlight = false;
-const ADMIN_SYNC_MS = 60000;
+let __adminRealtimeHooksBound = false;
+/** Admin panel açıkken sunucuyla sık senkron (~5 sn); başka cihazdan gelen ilanlar Bekleyen’e hızlı düşer. */
+const ADMIN_SYNC_MS = 5000;
 function startAdminRealtimeSync() {
     if (__adminRealtimeTimer) return;
     const tick = async () => {
@@ -1195,25 +1197,38 @@ function startAdminRealtimeSync() {
 
             updateAdminStats();
             renderAdminAds();
-            // aktif tabı tekrar çiz
+            // aktif tabı tekrar çiz (tüm paneller anlık kalsın)
             const activeTab = document.querySelector('.admin-tab-btn.active')?.dataset?.adminTab || 'stats';
             if (activeTab === 'pending') renderAdminPending();
             if (activeTab === 'users') renderAdminUsers();
             if (activeTab === 'reports') renderAdminReports();
             if (activeTab === 'analytics') renderAdminAnalytics();
             if (activeTab === 'online') renderAdminOnlineUsers();
+            if (activeTab === 'seller-apps') renderAdminSellerApps();
+            if (activeTab === 'product-requests') renderAdminProductRequests();
+            if (activeTab === 'stores') renderAdminStores();
+            if (activeTab === 'platform') renderAdminPlatform();
         } catch (e) {
             // sessiz geç
         } finally {
             __adminRealtimeInFlight = false;
         }
     };
+    window.__adminRealtimeTick = tick;
     tick();
     __adminRealtimeTimer = setInterval(tick, ADMIN_SYNC_MS);
-    if (typeof document !== 'undefined') {
+    if (typeof document !== 'undefined' && !__adminRealtimeHooksBound) {
+        __adminRealtimeHooksBound = true;
+        const runIfAdminVisible = function() {
+            if (document.visibilityState === 'hidden') return;
+            if (!isAdmin() || el('admin-page')?.style.display !== 'block') return;
+            const fn = window.__adminRealtimeTick;
+            if (typeof fn === 'function') fn();
+        };
         document.addEventListener('visibilitychange', function adminVis() {
-            if (document.visibilityState === 'visible' && isAdmin() && el('admin-page')?.style.display === 'block') tick();
+            if (document.visibilityState === 'visible') runIfAdminVisible();
         });
+        window.addEventListener('focus', runIfAdminVisible);
     }
 }
 
@@ -1658,6 +1673,13 @@ function updateAdminStats() {
     const ncr = el('admin-total-credits'); if (ncr) ncr.textContent = totalCredits + ' MKD';
     const pending = (window.adsDatabase || []).filter(a => (a.status || '') === 'pending').length;
     const badge = el('admin-pending-badge'); if (badge) badge.textContent = pending;
+    const oc = window.__adminOnlineCache;
+    const ob = el('admin-online-badge');
+    if (ob && oc && typeof oc.total === 'number') ob.textContent = oc.total;
+    const sab = el('admin-seller-apps-badge');
+    if (sab) sab.textContent = (window.sellerApplications || []).filter(a => a.status === 'pending').length;
+    const prb = el('admin-product-requests-badge');
+    if (prb) prb.textContent = (window.storeProductRequests || []).filter(r => r.status === 'pending').length;
 }
 
 function renderAdminPending() {
