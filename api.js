@@ -229,7 +229,6 @@
         attrs: data.attrs || {},
         condition: data.condition || 'İkinci El',
         sellerType: data.sellerType || 'Sahibinden',
-        status: data.status || 'pending',
         acceptTrade: !!data.acceptTrade
       };
       const r = await fetchJson(base() + '/api/ads', {

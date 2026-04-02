@@ -589,7 +589,7 @@ function getSiteSettings() {
     var parsed;
     try { parsed = JSON.parse(stored); } catch (e) { return { ...DEFAULT_SITE_SETTINGS, premiumPrices: { ...DEFAULT_SITE_SETTINGS.premiumPrices } }; }
     if (!parsed || typeof parsed !== 'object') return { ...DEFAULT_SITE_SETTINGS, premiumPrices: { ...DEFAULT_SITE_SETTINGS.premiumPrices } };
-    return {
+    const s = {
         premiumPrices: { ...DEFAULT_SITE_SETTINGS.premiumPrices, ...(parsed.premiumPrices || {}) },
         bumpPrice: parsed.bumpPrice ?? DEFAULT_SITE_SETTINGS.bumpPrice,
         whatsappNumber: parsed.whatsappNumber ?? DEFAULT_SITE_SETTINGS.whatsappNumber,
@@ -602,9 +602,13 @@ function getSiteSettings() {
         sellerAppMsgIntro: parsed.sellerAppMsgIntro ?? DEFAULT_SITE_SETTINGS.sellerAppMsgIntro,
         sellerAppMsgConfirm: parsed.sellerAppMsgConfirm ?? DEFAULT_SITE_SETTINGS.sellerAppMsgConfirm
     };
+    // Şimdilik yayında moderasyon yok: API modunda "beklemeye düşme"yi zorla kapat.
+    if (window.API_BASE) s.adRequiresApproval = false;
+    return s;
 }
 
 function saveSiteSettings(s) {
+    if (window.API_BASE && s && typeof s === 'object') s.adRequiresApproval = false;
     localStorage.setItem('alsat_site_settings', JSON.stringify(s));
 }
 
@@ -6492,9 +6496,17 @@ document.addEventListener('DOMContentLoaded', async function() {
     function mobileTap(elId, fn) {
         var elem = el(elId);
         if (!elem) return;
+        var lastTouch = 0;
         function run(e) { e.preventDefault(); e.stopPropagation(); fn(); }
-        elem.addEventListener('click', run);
-        elem.addEventListener('touchend', function(e) { e.preventDefault(); fn(); }, { passive: false });
+        elem.addEventListener('click', function(e) {
+            // iOS/Android bazı tarayıcılarda touchend sonrası click da tetikleniyor → çift çalışmayı engelle.
+            if (Date.now() - lastTouch < 700) { e.preventDefault(); e.stopPropagation(); return; }
+            run(e);
+        });
+        elem.addEventListener('touchend', function(e) {
+            lastTouch = Date.now();
+            run(e);
+        }, { passive: false });
     }
     mobileTap('mobile-action-theme', function() {
         var isDark = document.body.classList.contains('dark-theme');
