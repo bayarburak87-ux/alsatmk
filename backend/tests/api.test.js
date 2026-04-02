@@ -32,4 +32,15 @@ describe('Alsat API', () => {
     expect(res.body).toHaveProperty('page', 1);
     expect(res.body).toHaveProperty('limit', 5);
   });
+
+  it('GET /api/public/approved-ads returns array', async () => {
+    const res = await request(app).get('/api/public/approved-ads');
+    expect(res.status).toBe(200);
+    expect(Array.isArray(res.body)).toBe(true);
+  });
+
+  it('GET /api/users requires auth', async () => {
+    const res = await request(app).get('/api/users');
+    expect(res.status).toBe(401);
+  });
 });

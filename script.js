@@ -19,7 +19,7 @@ window.handleForgotSendCode = function(ev) {
     var tr = typeof window.t === 'function' ? window.t : function(k){ return k; };
     var email = ((document.getElementById('forgot-email')||{}).value || '').trim();
     if (!email) { (window.showToast||function(){})(tr('invalidAmount') || 'Geçerli e-posta girin', 'warning', 2000); return; }
-    var base = window.ALSAT_API_URL || window.API_BASE || (location.hostname && location.hostname.indexOf('alsatmk') >= 0 ? 'https://alsatmk-production.up.railway.app' : null) || (location.protocol + '//' + location.host);
+    var base = window.ALSAT_API_URL || window.API_BASE || (location.hostname && location.hostname.indexOf('alsatmk') >= 0 ? 'https://alsatmk-production-66c2.up.railway.app' : null) || (location.protocol + '//' + location.host);
     if (!base) { (window.showToast||function(){})(tr('codeSendFailed') || 'Bağlantı kurulamadı', 'error', 3000); return; }
     if (window.__alsatSendCodeBusy) return;
     window.__alsatSendCodeBusy = true;
@@ -40,7 +40,7 @@ window.handleSignupSendCode = function(ev) {
     var tr = typeof window.t === 'function' ? window.t : function(k){ return k; };
     var email = ((document.getElementById('signup-email')||{}).value || '').trim().toLowerCase();
     if (!email) { (window.showToast||function(){})(tr('loginRequired') || 'E-posta gerekli', 'warning', 2000); return; }
-    var base = window.ALSAT_API_URL || window.API_BASE || (location.hostname && location.hostname.indexOf('alsatmk') >= 0 ? 'https://alsatmk-production.up.railway.app' : null) || (location.protocol + '//' + location.host);
+    var base = window.ALSAT_API_URL || window.API_BASE || (location.hostname && location.hostname.indexOf('alsatmk') >= 0 ? 'https://alsatmk-production-66c2.up.railway.app' : null) || (location.protocol + '//' + location.host);
     if (!base) { (window.showToast||function(){})(tr('codeSendFailed') || 'Bağlantı kurulamadı', 'error', 3000); return; }
     if (window.__alsatSignupSendBusy) return;
     window.__alsatSignupSendBusy = true;
@@ -498,8 +498,15 @@ function getDefaultAds() {
 loadUsersDatabase();
 
 (function() {
-    window.adsDatabase = [];
-    localStorage.setItem('adsDatabase', '[]');
+    try {
+        if (!window.API_BASE) {
+            window.adsDatabase = JSON.parse(localStorage.getItem('adsDatabase') || '[]');
+        } else {
+            window.adsDatabase = [];
+        }
+    } catch (e) {
+        window.adsDatabase = [];
+    }
 })();
 
 window.favorites = JSON.parse(localStorage.getItem('favorites') || '[]');
@@ -984,6 +991,28 @@ function setCurrentUser(user, remember) {
     }
     window.userSession.user = user;
 }
+
+/**
+ * API modunda JWT varken oturum nesnesi (sessionStorage) silinmiş olabilir; /api/auth/me ile doldurur.
+ */
+async function ensureLoggedInUser() {
+    let u = getCurrentUser();
+    if (u) return u;
+    if (window.API_BASE && window.AlsatAPI && typeof window.AlsatAPI.isLoggedIn === 'function' && window.AlsatAPI.isLoggedIn()) {
+        try {
+            const me = await window.AlsatAPI.me();
+            if (me && me.id) {
+                getOrCreateUser(me.id, me.email, me.name, me.phone || '');
+                const persist = !!(localStorage.getItem('alsat_currentUser') || localStorage.getItem('alsat_token'));
+                setCurrentUser({ id: me.id, email: me.email, name: me.name, isAdmin: !!me.isAdmin }, persist);
+                if (typeof updateHeaderUI === 'function') updateHeaderUI();
+                return getCurrentUser();
+            }
+        } catch (err) {}
+    }
+    return null;
+}
+window.ensureLoggedInUser = ensureLoggedInUser;
 
 function logout() {
     if (window.API_BASE && window.AlsatAPI && typeof window.AlsatAPI.logout === 'function') {
@@ -5164,10 +5193,12 @@ function initBannerClicks() {
     var yeni = el('banner-yeni-ilanlar');
     var ozel = el('banner-ozel-teklifler');
     function doHizli() {
-        if (!getCurrentUser()) { showToast('postAdRequired', 'warning', 2000); window.openLoginModal(); return; }
-        resetAdForm();
-        var m = el('ilan-modal');
-        if (m) { m.style.display = 'flex'; m.classList.add('active'); document.body.style.overflow = 'hidden'; }
+        ensureLoggedInUser().then(function(u) {
+            if (!u) { showToast('postAdRequired', 'warning', 2000); window.openLoginModal(); return; }
+            resetAdForm();
+            var m = el('ilan-modal');
+            if (m) { m.style.display = 'flex'; m.classList.add('active'); document.body.style.overflow = 'hidden'; }
+        });
     }
     function doYeni() {
         window.bannerFeaturedOnly = false;
@@ -5298,7 +5329,7 @@ function getDraftFormData() {
 }
 
 el('btn-taslak-kaydet')?.addEventListener('click', async function() {
-    const user = getCurrentUser();
+    const user = await ensureLoggedInUser();
     if (!user) { showToast('loginRequired', 'warning', 2000); window.openLoginModal(); return; }
     const data = getDraftFormData();
     data.attrs = typeof getCategoryAttrsFromForm === 'function' ? getCategoryAttrsFromForm() : {};
@@ -5315,8 +5346,8 @@ el('btn-taslak-kaydet')?.addEventListener('click', async function() {
 
 el('ilan-formu')?.addEventListener('submit', async function(e) {
     e.preventDefault();
-    const user = getCurrentUser();
-    if (!user) { showToast('loginRequired', 'warning', 2000); return; }
+    const user = await ensureLoggedInUser();
+    if (!user) { showToast('loginRequired', 'warning', 2000); window.openLoginModal(); return; }
     if (!validateAdForm()) return;
     const editId = parseInt(el('ilan-modal').dataset.editId);
     const title = el('ilan-baslik')?.value?.trim();
@@ -5423,6 +5454,21 @@ el('login-formu')?.addEventListener('submit', async function(e) {
                     const apiFavs = await window.AlsatAPI.getFavorites(user.id);
                     if (Array.isArray(apiFavs)) window.favorites = apiFavs;
                 } catch (e) {}
+                if (user.isAdmin) {
+                    try {
+                        const users = await window.AlsatAPI.fetchUsers();
+                        if (users && typeof users === 'object') {
+                            window.usersDatabase = users;
+                            saveUsersDatabase();
+                        }
+                        const ads = await window.AlsatAPI.fetchAdsFull();
+                        if (Array.isArray(ads)) {
+                            window.adsDatabase = window.AlsatAPI.normalizeAds(ads);
+                            saveAdsDatabase();
+                            if (typeof applyFilters === 'function') applyFilters();
+                        }
+                    } catch (e) {}
+                }
                 updateHeaderUI();
                 closeLoginModal();
                 showToast('loginSuccess', 'success', 2000);
@@ -5462,7 +5508,7 @@ el('signup-formu')?.addEventListener('submit', async function(e) {
     if (!phone || phone.replace(/\D/g, '').length < 9) { showToast(tr('signupPhoneRequired') || 'Geçerli telefon numarası girin', 'warning', 2000); return; }
     if (password.length < 6) { showToast(tr('passwordMin6') || 'Şifre en az 6 karakter olmalı', 'warning', 2000); return; }
     if (password !== confirm) { showToast(tr('passwordsMustMatch') || 'Şifreler eşleşmiyor', 'warning', 2000); return; }
-    var base = window.ALSAT_API_URL || window.API_BASE || (location.hostname && location.hostname.indexOf('alsatmk') >= 0 ? 'https://alsatmk-production.up.railway.app' : null) || (location.protocol + '//' + location.host);
+    var base = window.ALSAT_API_URL || window.API_BASE || (location.hostname && location.hostname.indexOf('alsatmk') >= 0 ? 'https://alsatmk-production-66c2.up.railway.app' : null) || (location.protocol + '//' + location.host);
     if (base) {
         var codeStep = el('signup-code-step');
         var codeInput = el('signup-verify-code');
@@ -5668,8 +5714,16 @@ document.addEventListener('DOMContentLoaded', async function() {
         }
         if (t.closest && t.closest('#homepage-ilan-ver')) {
             e.preventDefault();
-            if (window.getCurrentUser && getCurrentUser()) { if (typeof resetAdForm === 'function') resetAdForm(); var m = document.getElementById('ilan-modal'); if (m) { m.style.display = 'flex'; m.classList.add('active'); document.body.style.overflow = 'hidden'; } }
-            else { (window.showToast||function(){})(typeof window.t==='function'?t('postAdRequired'):'Giriş yapınız','warning',2000); (window.openLoginModal||function(){})(); }
+            ensureLoggedInUser().then(function(u) {
+                if (u) {
+                    if (typeof resetAdForm === 'function') resetAdForm();
+                    var m = document.getElementById('ilan-modal');
+                    if (m) { m.style.display = 'flex'; m.classList.add('active'); document.body.style.overflow = 'hidden'; }
+                } else {
+                    (window.showToast||function(){})(typeof window.t==='function'?t('postAdRequired'):'Giriş yapınız','warning',2000);
+                    (window.openLoginModal||function(){})();
+                }
+            });
             return;
         }
         var adCard = t.closest && (t.closest('.ilan-kart[data-ad-id]') || t.closest('.ilan-kart[data-id]') || t.closest('.homepage-new-ad-card[data-ad-id]') || (t.closest('.recent-ad-card') && !t.closest('.recent-ad-remove, .recent-ad-fav, .recent-ad-compare')));
@@ -5736,11 +5790,16 @@ document.addEventListener('DOMContentLoaded', async function() {
             closeMenu();
             if (id === 'mobile-action-login') { (window.openLoginModal || function(){})(); }
             else if (id === 'mobile-action-ilan') {
-                var u = (typeof getCurrentUser === 'function' ? getCurrentUser() : (window.getCurrentUser && window.getCurrentUser()));
-                if (!u) {
-                    (window.showToast || function(){})('Giriş yapınız', 'warning', 2000);
-                    (window.openLoginModal || function(){})();
-                } else { if (typeof resetAdForm === 'function') resetAdForm(); var m = document.getElementById('ilan-modal'); if (m) { m.style.display = 'flex'; m.classList.add('active'); document.body.style.overflow = 'hidden'; } }
+                ensureLoggedInUser().then(function(u) {
+                    if (!u) {
+                        (window.showToast || function(){})('Giriş yapınız', 'warning', 2000);
+                        (window.openLoginModal || function(){})();
+                    } else {
+                        if (typeof resetAdForm === 'function') resetAdForm();
+                        var m = document.getElementById('ilan-modal');
+                        if (m) { m.style.display = 'flex'; m.classList.add('active'); document.body.style.overflow = 'hidden'; }
+                    }
+                });
             }
             else if (id === 'mobile-action-fav') { (window.openFavoritesPage || function(){})(); }
             else if (id === 'mobile-action-support') { (window.openSupportModal || function(){})(); }
@@ -5767,15 +5826,11 @@ document.addEventListener('DOMContentLoaded', async function() {
 
     if (window.API_BASE && window.AlsatAPI) {
         try {
+            await ensureLoggedInUser();
             const ads = await window.AlsatAPI.fetchAdsFull();
             window.adsDatabase = window.AlsatAPI.normalizeAds(Array.isArray(ads) ? ads : []);
             saveAdsDatabase();
             if (typeof applyFilters === 'function') applyFilters();
-            const users = await window.AlsatAPI.fetchUsers();
-            if (users && typeof users === 'object') {
-                window.usersDatabase = users;
-                saveUsersDatabase();
-            }
             const cur = getCurrentUser();
             if (cur && cur.id && window.AlsatAPI.isLoggedIn && window.AlsatAPI.isLoggedIn()) {
                 try {
@@ -5786,6 +5841,13 @@ document.addEventListener('DOMContentLoaded', async function() {
                         cur.name = fresh.name || cur.name;
                         setCurrentUser(cur, !!localStorage.getItem('alsat_currentUser'));
                         if (typeof updateHeaderUI === 'function') updateHeaderUI();
+                        if (fresh.isAdmin) {
+                            const users = await window.AlsatAPI.fetchUsers();
+                            if (users && typeof users === 'object') {
+                                window.usersDatabase = users;
+                                saveUsersDatabase();
+                            }
+                        }
                     }
                 } catch (e) {}
                 const apiFavs = await window.AlsatAPI.getFavorites(cur.id);
@@ -6276,9 +6338,10 @@ document.addEventListener('DOMContentLoaded', async function() {
         openStoreDetail(storeId);
     });
 
-    el('btnIlanVer')?.addEventListener('click', function(e) {
+    el('btnIlanVer')?.addEventListener('click', async function(e) {
         e.preventDefault();
-        if (!getCurrentUser()) {
+        const u = await ensureLoggedInUser();
+        if (!u) {
             showToast('postAdRequired', 'warning', 2000);
             window.openLoginModal();
             return;
@@ -6514,7 +6577,15 @@ document.addEventListener('DOMContentLoaded', async function() {
     });
     el('mobile-action-theme')?.addEventListener('keydown', function(e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.click(); } });
     mobileTap('mobile-action-support', function() { closeMobileMenu(); (window.openSupportModal || function(){})(); });
-    mobileTap('mobile-action-ilan', function() { closeMobileMenu(); if (!getCurrentUser()) { showToast(t('postAdRequired'), 'warning', 2000); (window.openLoginModal || function(){})(); return; } if (typeof resetAdForm === 'function') resetAdForm(); var m=el('ilan-modal'); if(m){ m.style.display='flex'; m.classList.add('active'); document.body.style.overflow='hidden'; } });
+    mobileTap('mobile-action-ilan', function() {
+        closeMobileMenu();
+        ensureLoggedInUser().then(function(u) {
+            if (!u) { showToast(t('postAdRequired'), 'warning', 2000); (window.openLoginModal || function(){})(); return; }
+            if (typeof resetAdForm === 'function') resetAdForm();
+            var m = el('ilan-modal');
+            if (m) { m.style.display = 'flex'; m.classList.add('active'); document.body.style.overflow = 'hidden'; }
+        });
+    });
     mobileTap('mobile-action-login', function() { closeMobileMenu(); (window.openLoginModal || function(){})(); });
     mobileTap('mobile-action-profile', function() { closeMobileMenu(); if (typeof openProfilePage==='function') openProfilePage(); else (window.openProfilePage||function(){})(); });
     mobileTap('mobile-action-admin', function() { closeMobileMenu(); if (isAdmin()) (window.openAdminPage||function(){})(); });

@@ -1902,7 +1902,8 @@
     <script src="api.js"></script>
     <script src="script.js"></script>
     <script>
-    if ('serviceWorker' in navigator) {
+    /* Service worker: eski JS/CSS önbelleği yüzünden güncelleme sonrası mobilde bozulma olabiliyor; istenirse sürüm artırılıp açılır. */
+    if (false && 'serviceWorker' in navigator) {
         navigator.serviceWorker.register('./sw.js').catch(function(){});
     }
     if (window.API_BASE) {

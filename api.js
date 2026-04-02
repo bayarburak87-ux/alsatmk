@@ -97,12 +97,36 @@
     async fetchAdsFull() {
       if (!base()) return null;
       try {
-        const rows = await fetchJson(base() + '/api/ads-full');
-        return Array.isArray(rows) ? rows : [];
-      } catch (e) { return null; }
+        const pubRes = await fetch(base() + '/api/public/approved-ads');
+        const pubData = pubRes.ok ? await pubRes.json().catch(() => []) : [];
+        const approved = Array.isArray(pubData) ? pubData : [];
+        if (!getToken()) return approved;
+        let me;
+        try {
+          me = await fetchJson(base() + '/api/auth/me');
+        } catch (e) {
+          return approved;
+        }
+        if (me && me.isAdmin) {
+          const rows = await fetchJson(base() + '/api/admin/ads', { headers: getAuthHeaders() });
+          return Array.isArray(rows) ? rows : approved;
+        }
+        let mine = [];
+        try {
+          mine = await fetchJson(base() + '/api/me/ads', { headers: getAuthHeaders() });
+        } catch (e) {
+          mine = [];
+        }
+        const map = new Map();
+        approved.forEach(r => map.set(r.id != null ? Number(r.id) : r.id, r));
+        (Array.isArray(mine) ? mine : []).forEach(r => map.set(r.id != null ? Number(r.id) : r.id, r));
+        return Array.from(map.values());
+      } catch (e) {
+        return null;
+      }
     },
 
-    /** Tek ilan (paylaşım linki / ads-full dışı kalan id'ler için). GET /api/ads/:id — görüntülenme sunucuda artar. */
+    /** Tek ilan (paylaşım linki; toplu listede olmayan id). GET /api/ads/:id — görüntülenme sunucuda artar. */
     async fetchAdById(adId) {
       if (!base()) return null;
       try {
@@ -154,8 +178,10 @@
     async fetchUsers() {
       if (!base()) return null;
       try {
-        return await fetchJson(base() + '/api/users');
-      } catch (e) { return null; }
+        return await fetchJson(base() + '/api/users', { headers: getAuthHeaders() });
+      } catch (e) {
+        return null;
+      }
     },
 
     async login(email, password, recaptchaToken) {
@@ -473,6 +499,7 @@
         attrs: r.attrs && typeof r.attrs === 'object' ? r.attrs : (r.attrs ? JSON.parse(r.attrs || '{}') : {}),
         condition: r.condition || 'İkinci El',
         sellerType: r.seller_type || 'Sahibinden',
+        seller: r.seller_name || r.seller || '',
         status: r.status != null && String(r.status).trim() !== '' ? r.status : 'pending',
         views: r.views || 0,
         clicks: r.clicks || 0,

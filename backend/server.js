@@ -16,7 +16,7 @@ const { audit, getAuditLog } = require('./audit');
 const { errorHandler, notFound } = require('./middleware/errorHandler');
 const {
   createToken, createRefreshToken, refreshAccessToken,
-  jwtMiddleware, hashPassword, comparePassword, rateLimit,
+  jwtMiddleware, optionalAuth, hashPassword, comparePassword, rateLimit,
   checkLoginLockout, recordLoginFailure, recordLoginSuccess
 } = require('./security');
 const {
@@ -49,6 +49,15 @@ const app = express();
 const driver = config.db.driver;
 const isSqlite = driver === 'sqlite';
 
+if (config.nodeEnv === 'production') {
+  const defSecret = 'alsat-dev-secret-change-in-production';
+  if (!process.env.JWT_SECRET || String(process.env.JWT_SECRET) === defSecret) {
+    // eslint-disable-next-line no-console
+    console.error('[FATAL] Production ortamında güçlü bir JWT_SECRET tanımlayın (Railway Variables).');
+    process.exit(1);
+  }
+}
+
 // Online kullanıcı takibi (in-memory, son 5 dk aktivite)
 const activeSessions = new Map();
 const ONLINE_TTL_MS = 5 * 60 * 1000;
@@ -78,9 +87,10 @@ app.set('trust proxy', 1);
 
 // Middleware
 app.use(helmet({ contentSecurityPolicy: false }));
-app.use(cors({
-  origin: config.cors.allowedOrigins.length ? config.cors.allowedOrigins : true
-}));
+const corsOriginResolved = config.cors.allowedOrigins.length
+  ? config.cors.allowedOrigins
+  : (typeof config.cors.origin === 'string' ? config.cors.origin : true);
+app.use(cors({ origin: corsOriginResolved }));
 app.use(express.json({ limit: '10mb' }));
 app.use(rateLimit);
 app.use(requestLogger);
@@ -194,12 +204,20 @@ app.get('/api/ads', paginationRules, handleValidation, async (req, res, next) =>
   }
 });
 
-app.get('/api/ads/:id', async (req, res, next) => {
+app.get('/api/ads/:id', optionalAuth, async (req, res, next) => {
   try {
     const id = parseInt(req.params.id, 10);
     const { sql: s, params: p } = paramStyle('SELECT * FROM ads WHERE id = ?', [id]);
     const row = await db.getAsync(s, p);
     if (!row) return res.status(404).json({ error: 'İlan bulunamadı' });
+    const status = String(row.status || '').toLowerCase();
+    const ownerId = row.user_id;
+    const uid = req.user?.id;
+    const isOwner = uid != null && Number(ownerId) === Number(uid);
+    const isAdminUser = req.user?.email && String(req.user.email).toLowerCase() === String(config.admin.email || '').toLowerCase();
+    if (status !== 'approved' && !isOwner && !isAdminUser) {
+      return res.status(404).json({ error: 'İlan bulunamadı' });
+    }
     const r = parseAdRow(row);
     const { sql: u, params: up } = paramStyle('UPDATE ads SET views = COALESCE(views, 0) + 1 WHERE id = ?', [id]);
     await db.runAsync(u, up);
@@ -309,9 +327,12 @@ app.post('/api/ads/:id/report', jwtMiddleware, reportAdRules, handleValidation, 
   }
 });
 
-app.get('/api/ads-full', async (req, res, next) => {
+// Herkese açık: yalnızca onaylı ilanlar (liste senkronu). Eski /api/ads-full kaldırıldı.
+app.get('/api/public/approved-ads', async (req, res, next) => {
   try {
-    const rows = await db.queryAsync('SELECT * FROM ads ORDER BY id DESC LIMIT 500');
+    const q = 'SELECT a.*, u.name AS seller_name FROM ads a LEFT JOIN users u ON a.user_id = u.id WHERE a.status = ? ORDER BY a.id DESC LIMIT 500';
+    const { sql: s, params: p } = paramStyle(q, ['approved']);
+    const rows = await db.queryAsync(s, p);
     res.json(rows.map(parseAdRow));
   } catch (e) {
     next(e);
@@ -319,7 +340,7 @@ app.get('/api/ads-full', async (req, res, next) => {
 });
 
 // ========== KULLANICILAR ==========
-app.get('/api/users', async (req, res, next) => {
+app.get('/api/users', jwtMiddleware, requireAdminJwt, async (req, res, next) => {
   try {
     const rows = await db.queryAsync('SELECT id, email, name, phone, banned, created_at FROM users');
     const obj = {};
@@ -330,12 +351,17 @@ app.get('/api/users', async (req, res, next) => {
   }
 });
 
-app.get('/api/users/:id', async (req, res, next) => {
+app.get('/api/users/:id', optionalAuth, async (req, res, next) => {
   try {
-    const { sql: s, params: p } = paramStyle('SELECT id, email, name, phone, banned, created_at FROM users WHERE id = ?', [parseInt(req.params.id)]);
+    const targetId = parseInt(req.params.id, 10);
+    const { sql: s, params: p } = paramStyle('SELECT id, email, name, phone, banned, created_at FROM users WHERE id = ?', [targetId]);
     const row = await db.getAsync(s, p);
     if (!row) return res.status(404).json({ error: 'Kullanıcı bulunamadı' });
-    res.json(row);
+    const uid = req.user?.id;
+    const isSelf = uid != null && Number(uid) === targetId;
+    const isAdminUser = req.user?.email && String(req.user.email).toLowerCase() === String(config.admin.email || '').toLowerCase();
+    if (isSelf || isAdminUser) return res.json(row);
+    res.json({ id: row.id, name: row.name, banned: row.banned, created_at: row.created_at });
   } catch (e) {
     next(e);
   }
@@ -491,6 +517,18 @@ app.get('/api/auth/me', jwtMiddleware, async (req, res, next) => {
     if (row.banned) return res.status(403).json({ error: 'Hesabınız engellenmiş' });
     const isAdmin = (row.email || '').toLowerCase() === (config.admin.email || '').toLowerCase();
     res.json({ id: row.id, email: row.email, name: row.name, phone: row.phone, isAdmin });
+  } catch (e) {
+    next(e);
+  }
+});
+
+app.get('/api/me/ads', jwtMiddleware, async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+    const q = 'SELECT a.*, u.name AS seller_name FROM ads a LEFT JOIN users u ON a.user_id = u.id WHERE a.user_id = ? ORDER BY a.id DESC';
+    const { sql: s, params: p } = paramStyle(q, [userId]);
+    const rows = await db.queryAsync(s, p);
+    res.json(rows.map(parseAdRow));
   } catch (e) {
     next(e);
   }
