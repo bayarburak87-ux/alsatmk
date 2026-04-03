@@ -147,6 +147,16 @@
       }
     },
 
+    // Sadece kullanıcının kendi ilanları (pending/approved/rejected) - moderasyon için
+    async fetchMyAds() {
+      if (!base()) return [];
+      try {
+        return await fetchJson(base() + '/api/me/ads');
+      } catch (e) {
+        return [];
+      }
+    },
+
     /** Tek ilan (paylaşım linki; toplu listede olmayan id). GET /api/ads/:id — görüntülenme sunucuda artar. */
     async fetchAdById(adId) {
       if (!base()) return null;

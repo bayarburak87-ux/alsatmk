@@ -695,7 +695,100 @@ function startSiteSettingsPolling() {
     window.__siteSettingsPollTimer = setInterval(function() {
         if (document.visibilityState === 'hidden') return;
         tickSiteSettings();
-    }, 6000);
+    }, 30000);
+}
+
+// ========== KULLANICI İLAN DURUMU (pending -> approved/rejected) ==========
+window.__myAdsApprovalWatch = {};
+try {
+    const raw = localStorage.getItem('alsat_my_ads_watch') || '{}';
+    window.__myAdsApprovalWatch = JSON.parse(raw) || {};
+} catch (e) {}
+
+window.__myAdsApprovalPollTimer = null;
+
+function persistMyAdsApprovalWatch() {
+    try { localStorage.setItem('alsat_my_ads_watch', JSON.stringify(window.__myAdsApprovalWatch || {})); } catch (e) {}
+}
+
+function getWatchedMyAdIds() {
+    const w = window.__myAdsApprovalWatch || {};
+    return Object.keys(w).map(id => parseInt(id, 10)).filter(id => !isNaN(id));
+}
+
+function stopMyAdsApprovalWatcher() {
+    if (window.__myAdsApprovalPollTimer) clearInterval(window.__myAdsApprovalPollTimer);
+    window.__myAdsApprovalPollTimer = null;
+}
+
+function ensureMyAdsApprovalWatcherRunning() {
+    if (!useLiveApi() || !window.AlsatAPI?.fetchMyAds) return;
+    const ids = getWatchedMyAdIds();
+    if (ids.length === 0) {
+        stopMyAdsApprovalWatcher();
+        return;
+    }
+    if (!getCurrentUser()) return;
+    if (window.__myAdsApprovalPollTimer) return;
+    window.__myAdsApprovalPollTimer = setInterval(tickMyAdsApprovalWatcher, 6500);
+    tickMyAdsApprovalWatcher();
+}
+
+function markMyAdWatched(adId, status) {
+    const id = parseInt(adId, 10);
+    if (isNaN(id)) return;
+    window.__myAdsApprovalWatch = window.__myAdsApprovalWatch || {};
+    window.__myAdsApprovalWatch[id] = status || 'pending';
+    persistMyAdsApprovalWatch();
+    ensureMyAdsApprovalWatcherRunning();
+}
+
+async function tickMyAdsApprovalWatcher() {
+    if (!useLiveApi() || !window.AlsatAPI?.fetchMyAds) return;
+    const ids = getWatchedMyAdIds();
+    if (ids.length === 0) {
+        stopMyAdsApprovalWatcher();
+        return;
+    }
+    const user = getCurrentUser();
+    if (!user) return;
+
+    let myAds = [];
+    try { myAds = await window.AlsatAPI.fetchMyAds(); } catch (e) { myAds = []; }
+    if (!Array.isArray(myAds)) myAds = [];
+
+    const byId = new Map();
+    myAds.forEach(a => byId.set(Number(a.id), a));
+
+    let changed = false;
+    ids.forEach(id => {
+        const ad = byId.get(Number(id));
+        if (!ad) return;
+        const prev = window.__myAdsApprovalWatch[id];
+        const curr = (ad.status || 'approved');
+        if (prev && prev !== curr) {
+            // local UI state update
+            const idx = (window.adsDatabase || []).findIndex(a => Number(a.id) === Number(id));
+            if (idx >= 0) window.adsDatabase[idx] = { ...(window.adsDatabase[idx] || {}), status: curr, ...ad };
+
+            if (curr === 'approved') {
+                showToast('adPublished', 'success', 2400);
+                addNotification(user.id, 'ad_approved', 'İlan onaylandı', '"' + (ad.title || '') + '" ilanınız yayına alındı.', { adId: id });
+            } else if (curr === 'rejected') {
+                showToast('adRejected', 'info', 2400);
+                addNotification(user.id, 'ad_rejected', 'İlan reddedildi', '"' + (ad.title || '') + '" ilanınız reddedildi.', { adId: id });
+            }
+            delete window.__myAdsApprovalWatch[id];
+            changed = true;
+        }
+    });
+
+    if (changed) {
+        persistMyAdsApprovalWatch();
+        // My ads page açık ise statüleri güncelle
+        if (el('my-ads-page')?.style?.display === 'block') openMyAdsPage();
+    }
+    ensureMyAdsApprovalWatcherRunning();
 }
 
 // Kullanıcı veritabanı - tüm kullanıcılar
@@ -5922,12 +6015,13 @@ el('ilan-formu')?.addEventListener('submit', async function(e) {
                 if (!apiId) throw new Error('İlan ID alınamadı');
                 adData.id = apiId;
                 adData.status = getSiteSettings().adRequiresApproval ? 'pending' : 'approved';
-                const rows = await window.AlsatAPI.fetchAdsFull();
-                if (Array.isArray(rows)) {
-                    window.adsDatabase = window.AlsatAPI.normalizeAds(rows);
-                    saveAdsDatabase();
-                } else {
-                    window.adsDatabase.push(adData);
+                // Hız: burada fetchAdsFull (500 ilan) çekmeyelim; ads sayfası kapansın zaten.
+                const idx = window.adsDatabase.findIndex(a => Number(a.id) === Number(apiId));
+                if (idx >= 0) window.adsDatabase[idx] = { ...(window.adsDatabase[idx] || {}), ...adData };
+                else window.adsDatabase.push(adData);
+
+                if (adData.status === 'pending') {
+                    markMyAdWatched(apiId, 'pending');
                 }
             } catch (err) {
                 showToast(err?.error || err?.message || (t('codeSendFailed') || 'İlan sunucuya kaydedilemedi. Giriş yapıp tekrar deneyin.'), 'error', 3500);
@@ -5945,7 +6039,6 @@ el('ilan-formu')?.addEventListener('submit', async function(e) {
     resetAdForm();
     this.reset();
     applyFilters();
-    openMyAdsPage();
 });
 
 // ========== LOGIN / SIGNUP ==========
@@ -6713,17 +6806,28 @@ document.addEventListener('DOMContentLoaded', async function() {
         adminSellerAppStatus(appId, 'rejected', reason);
         window.closeSellerAppRejectModal();
     });
-    el('admin-reject-submit')?.addEventListener('click', function() {
+    el('admin-reject-submit')?.addEventListener('click', async function() {
         if (!isAdmin()) return;
         const adId = parseInt(el('adm-reject-ad-id')?.value);
         const reason = (el('adm-reject-reason')?.value || '').trim();
-        const ad = window.adsDatabase.find(a => a.id === adId);
+        const ad = window.adsDatabase.find(a => Number(a.id) === Number(adId));
         if (!ad) return;
+
+        // DB tarafında status'u değiştir (aksi halde diğer cihazlar görmez)
+        if (window.API_BASE && window.AlsatAPI?.adminSetAdStatus) {
+            try {
+                await window.AlsatAPI.adminSetAdStatus(adId, 'rejected');
+            } catch (e) {
+                showToast('Sunucu hatası: ilan reddedilemedi', 'error', 2500);
+                return;
+            }
+        }
+
         ad.status = 'rejected';
         ad.rejectReason = reason;
         addAdminAudit('ad_rejected', 'İlan #' + adId + ' reddedildi: ' + (ad.title||'').slice(0,40));
-        saveAdsDatabase();
-        if (ad.userId) addNotification(ad.userId, 'ad_rejected', 'İlan reddedildi', '"' + ad.title + '" ilanınız reddedildi. Sebep: ' + (reason || '-'), { adId });
+
+        // UI hemen güncellensin (DB güncellemesi zaten oldu)
         window.closeAdminRejectModal();
         updateAdminStats();
         renderAdminPending();
