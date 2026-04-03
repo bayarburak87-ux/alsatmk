@@ -683,8 +683,11 @@ async function tickSiteSettings() {
         window.__ALSAT_SITE_SETTINGS_SERVER = data;
         applyServerSiteSettingsToLocal(data);
         if (typeof updatePremiumLabels === 'function') updatePremiumLabels();
-        if (typeof applyFilters === 'function') applyFilters();
-        if (isAdmin() && typeof loadAdminSettings === 'function') loadAdminSettings();
+        // Kullanıcı “görsel olarak” zıplama yaşamasın diye listeyi/filtreleri burada yeniden çizme.
+        // Yenileme sadece kullanıcı tıklayınca (ya da admin panelde açıkken) yapılacak.
+        if (isAdmin() && typeof loadAdminSettings === 'function' && el('admin-page')?.style?.display === 'block') {
+            loadAdminSettings();
+        }
     } catch (e) {}
 }
 function startSiteSettingsPolling() {
@@ -5173,7 +5176,9 @@ function selectConversation(convKey) {
     `;
         mv.dataset.convKey = convKey;
         if (mfc) mfc.style.display = 'flex';
-        el('message-input').value = '';
+        // Polling/auto-refresh sırasında kullanıcı mesaj yazıyorsa input’u silme.
+        const mi = el('message-input');
+        if (mi && document.activeElement !== mi) mi.value = '';
         const qtEl = el('message-quick-templates');
         if (qtEl) {
             const buyerTemplates = ['Hala satılık mı?', 'En son fiyat ne?', 'Takas yapılır mı?', 'Nerede buluşabiliriz?', 'Yarın teslim alabilir miyim?'];
@@ -5199,6 +5204,7 @@ function selectConversation(convKey) {
         }
         let inflight = false;
         let lastUnreadRefresh = 0;
+        let lastConvListRender = 0;
         const poll = async function() {
             if (inflight) return;
             inflight = true;
@@ -5223,10 +5229,24 @@ function selectConversation(convKey) {
                     lastUnreadRefresh = now;
                     await refreshMessagingUnread();
                     const u2 = getCurrentUser();
-                    if (u2 && el('messaging-modal')?.style?.display === 'flex') renderConversationList(u2);
+                    // Listeyi sürekli yeniden çizip “refresh” hissi oluşturmasın.
+                    // Sadece aralıklı ve kullanıcı input’a odaklı değilse güncelle.
+                    if (u2 && el('messaging-modal')?.style?.display === 'flex') {
+                        const mi = el('message-input');
+                        const typing = mi && document.activeElement === mi;
+                        if (!typing && now - lastConvListRender > 15000) {
+                            lastConvListRender = now;
+                            renderConversationList(u2);
+                        }
+                    }
                 } else if (changed) {
                     const u2 = getCurrentUser();
-                    if (u2 && el('messaging-modal')?.style?.display === 'flex') renderConversationList(u2);
+                    const mi = el('message-input');
+                    const typing = mi && document.activeElement === mi;
+                    if (u2 && el('messaging-modal')?.style?.display === 'flex' && !typing && now - lastConvListRender > 15000) {
+                        lastConvListRender = now;
+                        renderConversationList(u2);
+                    }
                 }
             } catch (e) {}
             finally {
