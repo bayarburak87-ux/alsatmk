@@ -13,13 +13,19 @@ function inferDbDriver() {
   return 'sqlite';
 }
 
+const __nodeEnv = process.env.NODE_ENV || 'development';
+const __driver = inferDbDriver();
+if (__nodeEnv === 'production' && __driver === 'sqlite') {
+  throw new Error('[FATAL] Production ortamında SQLite kullanılamaz; DB_DRIVER=postgres/mysql olmalı.');
+}
+
 module.exports = {
   port: parseInt(process.env.PORT, 10) || 3001,
-  nodeEnv: process.env.NODE_ENV || 'development',
-  isDev: (process.env.NODE_ENV || 'development') === 'development',
+  nodeEnv: __nodeEnv,
+  isDev: __nodeEnv === 'development',
 
   db: {
-    driver: inferDbDriver(),
+    driver: __driver,
     url: process.env.DATABASE_URL
   },
 

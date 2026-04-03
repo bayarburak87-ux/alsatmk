@@ -4,7 +4,9 @@
  */
 (function() {
   if (window.ALSAT_API_URL) {
-    window.API_BASE = window.ALSAT_API_URL.replace(/\/$/, '');
+    var u = String(window.ALSAT_API_URL || '').trim();
+    if (u && !/^https?:\/\//i.test(u)) u = 'https://' + u;
+    window.API_BASE = u.replace(/\/$/, '');
   } else if (typeof location !== 'undefined') {
     var h = (location.hostname || '');
     window.API_BASE = (h === 'localhost' || h === '127.0.0.1')

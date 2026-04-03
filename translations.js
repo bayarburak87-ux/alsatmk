@@ -243,7 +243,7 @@ window.TRANSLATIONS = {
         confirmPassLabel: "ŞİFRE TEKRARI",
         confirmPassPlaceholder: "Şifre tekrarı",
         notifications: "Bildirimler",
-        read: "Okundu",
+        read: "Görüldü",
         notificationsEnabled: "Bildirimler açıldı",
         notificationsDenied: "Bildirimler kapalı",
         notificationsAlreadyEnabled: "Bildirimler zaten açık",

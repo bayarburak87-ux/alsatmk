@@ -292,8 +292,18 @@ app.post('/api/ads', jwtMiddleware, createAdRules, handleValidation, async (req,
     const expiryAt = expiry.toISOString().slice(0, 10);
     const insertCols = 'user_id, title, price, currency, category, sub_category, city, district, description, images, attrs, condition, seller_type, status, accept_trade, price_history, created_at, expiry_at';
     const insertVals = '?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?';
-    // Varsayılan doğrudan yayın; moderasyon için Railway'de ADS_DEFAULT_STATUS=pending
-    const newAdStatus = String(process.env.ADS_DEFAULT_STATUS || 'approved').toLowerCase() === 'pending' ? 'pending' : 'approved';
+    // Moderasyon: admin panelde yapılan değişiklikler -> site_settings.adRequiresApproval
+    // fallback: Railway env ADS_DEFAULT_STATUS
+    const envPending = String(process.env.ADS_DEFAULT_STATUS || 'approved').toLowerCase() === 'pending';
+    let needApproval = null;
+    try {
+      const { sql: ssSql, params: ssParams } = paramStyle('SELECT data FROM site_settings WHERE id = ?', [1]);
+      const ssRow = await db.getAsync(ssSql, ssParams);
+      const raw = ssRow?.data;
+      const ss = (typeof raw === 'string') ? JSON.parse(raw) : raw;
+      if (ss && typeof ss.adRequiresApproval === 'boolean') needApproval = ss.adRequiresApproval;
+    } catch (e) {}
+    const newAdStatus = needApproval === null ? (envPending ? 'pending' : 'approved') : (needApproval ? 'pending' : 'approved');
     const insertParams = [userId, d.title, d.price, d.currency || 'MKD', d.category, d.subCategory || '', d.city, d.district || '', d.description || '', images, attrs, d.condition || 'İkinci El', d.sellerType || 'Sahibinden', newAdStatus, d.acceptTrade ? 1 : 0, priceHistory, createdAt, expiryAt];
     let insertSql = `INSERT INTO ads (${insertCols}) VALUES (${insertVals})`;
     if (driver === 'postgres') insertSql += ' RETURNING id';
@@ -1142,9 +1152,43 @@ app.patch('/api/admin/ads/:id/status', jwtMiddleware, requireAdminJwt, async (re
 app.delete('/api/admin/ads/:id', jwtMiddleware, requireAdminJwt, async (req, res, next) => {
   try {
     const id = parseInt(req.params.id, 10);
+    if (!Number.isFinite(id)) {
+      return res.status(400).json({ error: 'Geçersiz ilan id' });
+    }
     // bağlı kayıtlar temizle
-    try { const { sql: f1, params: p1 } = paramStyle('DELETE FROM favorites WHERE ad_id = ?', [id]); await db.runAsync(f1, p1); } catch (e) {}
-    try { const { sql: r1, params: pr } = paramStyle('DELETE FROM ad_reports WHERE ad_id = ?', [id]); await db.runAsync(r1, pr); } catch (e) {}
+    // Postgres FK kısıtları için önce alt tabloları temizle (manuel cascade)
+    {
+      const { sql: u1, params: p1 } = paramStyle('DELETE FROM user_ratings WHERE ad_id = ?', [id]);
+      await db.runAsync(u1, p1);
+    }
+    {
+      const { sql: p1, params: pp1 } = paramStyle('DELETE FROM price_alerts WHERE ad_id = ?', [id]);
+      await db.runAsync(p1, pp1);
+    }
+    {
+      const { sql: ph1, params: php1 } = paramStyle('DELETE FROM phone_views WHERE ad_id = ?', [id]);
+      await db.runAsync(ph1, php1);
+    }
+    {
+      const { sql: f1, params: p1 } = paramStyle('DELETE FROM favorites WHERE ad_id = ?', [id]);
+      await db.runAsync(f1, p1);
+    }
+    {
+      const { sql: r1, params: pr } = paramStyle('DELETE FROM ad_reports WHERE ad_id = ?', [id]);
+      await db.runAsync(r1, pr);
+    }
+    // conversations -> messages zinciri
+    {
+      const { sql: m1, params: mp1 } = paramStyle(
+        'DELETE FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE ad_id = ?)',
+        [id]
+      );
+      await db.runAsync(m1, mp1);
+    }
+    {
+      const { sql: c1, params: cp1 } = paramStyle('DELETE FROM conversations WHERE ad_id = ?', [id]);
+      await db.runAsync(c1, cp1);
+    }
     const { sql: d, params: dp } = paramStyle('DELETE FROM ads WHERE id = ?', [id]);
     await db.runAsync(d, dp);
     audit('admin_ad_deleted', { adId: id, admin: req.user?.email });
@@ -1200,14 +1244,28 @@ app.put('/api/admin/site-settings', jwtMiddleware, requireAdminJwt, async (req, 
 });
 
 // ========== PUBLIC CONFIG (reCAPTCHA site key, VAPID public - frontend için) ==========
-app.get('/api/config', (req, res) => {
-  const pending = String(process.env.ADS_DEFAULT_STATUS || 'approved').toLowerCase() === 'pending';
-  res.json({
-    recaptchaSiteKey: config.recaptcha?.siteKey || '',
-    vapidPublicKey: config.vapid?.publicKey || '',
-    adminEmail: (config.admin.email || 'info@alsatmk.com').toLowerCase(),
-    adRequiresApproval: pending
-  });
+app.get('/api/config', async (req, res, next) => {
+  try {
+    const envPending = String(process.env.ADS_DEFAULT_STATUS || 'approved').toLowerCase() === 'pending';
+    let needApproval = null;
+    try {
+      const { sql: ssSql, params: ssParams } = paramStyle('SELECT data FROM site_settings WHERE id = ?', [1]);
+      const ssRow = await db.getAsync(ssSql, ssParams);
+      const raw = ssRow?.data;
+      const ss = (typeof raw === 'string') ? JSON.parse(raw) : raw;
+      if (ss && typeof ss.adRequiresApproval === 'boolean') needApproval = ss.adRequiresApproval;
+    } catch (e) {}
+    const adRequiresApproval = needApproval === null ? envPending : needApproval;
+    res.json({
+      recaptchaSiteKey: config.recaptcha?.siteKey || '',
+      vapidPublicKey: config.vapid?.publicKey || '',
+      adminEmail: (config.admin.email || 'info@alsatmk.com').toLowerCase(),
+      adRequiresApproval
+    });
+  } catch (e) {
+    if (next) next(e);
+    else res.json({ adRequiresApproval: false });
+  }
 });
 
 // ========== HEALTH ==========

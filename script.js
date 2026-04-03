@@ -633,8 +633,11 @@ function getSiteSettings() {
     }
     const h = typeof location !== 'undefined' ? String(location.hostname || '') : '';
     const isLocalHost = h === 'localhost' || h === '127.0.0.1';
+    var serverSite = window.__ALSAT_SITE_SETTINGS_SERVER;
     if (window.API_BASE && isLocalHost) {
         s.adRequiresApproval = false;
+    } else if (window.API_BASE && !isLocalHost && serverSite && typeof serverSite.adRequiresApproval === 'boolean') {
+        s.adRequiresApproval = serverSite.adRequiresApproval;
     } else if (window.API_BASE && !isLocalHost && typeof window.__ALSAT_SERVER_AD_REQUIRES_APPROVAL === 'boolean') {
         s.adRequiresApproval = window.__ALSAT_SERVER_AD_REQUIRES_APPROVAL;
     }
@@ -643,6 +646,56 @@ function getSiteSettings() {
 
 function saveSiteSettings(s) {
     localStorage.setItem('alsat_site_settings', JSON.stringify(s));
+}
+
+// Canlıda admin panelden yapılan değişiklikler herkese hızlı yansısın diye
+// site ayarlarını belirli aralıklarla sunucudan çekiyoruz.
+window.__siteSettingsPollTimer = null;
+function applyServerSiteSettingsToLocal(serverData) {
+    if (!serverData || typeof serverData !== 'object') return;
+    let stored = {};
+    try { stored = JSON.parse(localStorage.getItem('alsat_site_settings') || '{}'); } catch (e) { stored = {}; }
+    if (!stored || typeof stored !== 'object') stored = {};
+    if (serverData.premiumPrices && typeof serverData.premiumPrices === 'object') {
+        stored.premiumPrices = { ...(stored.premiumPrices || {}), ...serverData.premiumPrices };
+    }
+    [
+        'bumpPrice',
+        'maxPhotos',
+        'maxVideoSeconds',
+        'defaultAdDays',
+        'extendedAdDays',
+        'whatsappNumber',
+        'viberNumber',
+        'adRequiresApproval',
+        'sellerAppMsgIntro',
+        'sellerAppMsgConfirm'
+    ].forEach(function(k) {
+        if (serverData[k] !== undefined && serverData[k] !== null) stored[k] = serverData[k];
+    });
+    localStorage.setItem('alsat_site_settings', JSON.stringify(stored));
+}
+async function tickSiteSettings() {
+    if (!useLiveApi() || !window.AlsatAPI?.fetchSiteSettings) return;
+    try {
+        const data = await window.AlsatAPI.fetchSiteSettings();
+        if (!data || typeof data !== 'object') return;
+        window.__ALSAT_SITE_SETTINGS_SERVER = data;
+        applyServerSiteSettingsToLocal(data);
+        if (typeof updatePremiumLabels === 'function') updatePremiumLabels();
+        if (typeof applyFilters === 'function') applyFilters();
+        if (isAdmin() && typeof loadAdminSettings === 'function') loadAdminSettings();
+    } catch (e) {}
+}
+function startSiteSettingsPolling() {
+    if (!useLiveApi()) return;
+    if (!window.AlsatAPI?.fetchSiteSettings) return;
+    if (window.__siteSettingsPollTimer) return;
+    tickSiteSettings();
+    window.__siteSettingsPollTimer = setInterval(function() {
+        if (document.visibilityState === 'hidden') return;
+        tickSiteSettings();
+    }, 6000);
 }
 
 // Kullanıcı veritabanı - tüm kullanıcılar
@@ -1024,7 +1077,7 @@ function startMessagingUnreadPolling() {
         refreshMessagingUnread();
     };
     tick();
-    window.__messagingUnreadPollTimer = setInterval(tick, 22000);
+    window.__messagingUnreadPollTimer = setInterval(tick, 8000);
     document.addEventListener('visibilitychange', function() {
         if (document.visibilityState === 'visible') tick();
     });
@@ -4937,6 +4990,10 @@ window.openMessagingModal = async function (openConvKey) {
 window.closeMessagingModal = function () {
     el('messaging-modal').style.display = 'none';
     el('messaging-modal').classList.remove('active');
+    if (window.__convMsgPollTimer) {
+        clearInterval(window.__convMsgPollTimer);
+        window.__convMsgPollTimer = null;
+    }
 };
 
 function imgThumbForConv(c) {
@@ -5035,17 +5092,49 @@ function selectConversation(convKey) {
     }
 
     if (useLiveApi() && c.id && window.AlsatAPI?.getConversationMessages) {
-        window.AlsatAPI.getConversationMessages(c.id).then(async function(msgs) {
-            c.messages = (msgs || []).map(function(m) {
-                return { from: m.from_user_id, text: m.text, time: m.time, read_at: m.read_at };
-            });
-            if (window.AlsatAPI.markMessagesAsRead) await window.AlsatAPI.markMessagesAsRead(c.id);
-            c.unread_count = 0;
-            paintPanel();
-            await refreshMessagingUnread();
-            const u2 = getCurrentUser();
-            if (u2) renderConversationList(u2);
-        }).catch(function() { paintPanel(); });
+        const convId = c.id;
+        if (window.__convMsgPollTimer) {
+            clearInterval(window.__convMsgPollTimer);
+            window.__convMsgPollTimer = null;
+        }
+        let inflight = false;
+        let lastUnreadRefresh = 0;
+        const poll = async function() {
+            if (inflight) return;
+            inflight = true;
+            try {
+                const msgs = await window.AlsatAPI.getConversationMessages(convId);
+                const newMessages = (msgs || []).map(function(m) {
+                    return { from: m.from_user_id, text: m.text, time: m.time, read_at: m.read_at };
+                });
+                const oldMsgs = Array.isArray(c.messages) ? c.messages : [];
+                const lastOld = oldMsgs.length ? oldMsgs[oldMsgs.length - 1] : null;
+                const lastNew = newMessages.length ? newMessages[newMessages.length - 1] : null;
+                const changed = !lastOld || !lastNew || String(lastOld.time) !== String(lastNew.time) || String(lastOld.text) !== String(lastNew.text);
+                if (changed) {
+                    c.messages = newMessages;
+                    paintPanel();
+                }
+                if (window.AlsatAPI.markMessagesAsRead) await window.AlsatAPI.markMessagesAsRead(convId);
+                c.unread_count = 0;
+                const now = Date.now();
+                const shouldRefreshUnread = changed || now - lastUnreadRefresh > 11000;
+                if (shouldRefreshUnread) {
+                    lastUnreadRefresh = now;
+                    await refreshMessagingUnread();
+                    const u2 = getCurrentUser();
+                    if (u2 && el('messaging-modal')?.style?.display === 'flex') renderConversationList(u2);
+                } else if (changed) {
+                    const u2 = getCurrentUser();
+                    if (u2 && el('messaging-modal')?.style?.display === 'flex') renderConversationList(u2);
+                }
+            } catch (e) {}
+            finally {
+                inflight = false;
+            }
+        };
+        poll();
+        window.__convMsgPollTimer = setInterval(poll, 4500);
     } else {
         paintPanel();
         if (window.API_BASE && window.AlsatAPI && c.id) window.AlsatAPI.markMessagesAsRead(c.id);
@@ -5079,7 +5168,7 @@ function formatMessagesWithDates(messages, myId) {
         const dateKey = d.toDateString();
         let sep = '';
         if (dateKey !== lastDate) { lastDate = dateKey; sep = `<div class="msg-date-sep">${formatDateSeparator(m.time)}</div>`; }
-        const readBadge = (isMe && m.read_at) ? '<span class="msg-read" title="' + (t('read') || 'Okundu') + '"><i class="fa-solid fa-check-double"></i></span>' : '';
+        const readBadge = m.read_at ? '<span class="msg-read" title="' + (t('read') || 'Görüldü') + '"><i class="fa-solid fa-check-double"></i></span>' : '';
         return sep + `<div class="msg-row ${isMe ? 'sent' : 'received'}"><div class="msg-bubble ${isMe ? 'sent' : 'received'}">${escapeHtml(m.text)}<span class="msg-meta">${readBadge}<span class="msg-time">${formatMessageTime(m.time)}</span></span></div></div>`;
     }).join('');
 }
@@ -6252,6 +6341,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                     window.__ALSAT_SITE_SETTINGS_SERVER = await window.AlsatAPI.fetchSiteSettings();
                     if (typeof window.refreshAdminSettingsFromServer === 'function') window.refreshAdminSettingsFromServer();
                 } catch (e) {}
+                startSiteSettingsPolling();
             }
             const ads = await window.AlsatAPI.fetchAdsFull();
             window.adsDatabase = window.AlsatAPI.normalizeAds(Array.isArray(ads) ? ads : []);
