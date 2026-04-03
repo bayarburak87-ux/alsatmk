@@ -932,7 +932,14 @@ window.closeSupportModal = function() { var m = el('support-modal'); if (m) { m.
 const el = (id) => document.getElementById(id);
 const qsa = (sel) => document.querySelectorAll(sel);
 
-function saveAdsDatabase() { localStorage.setItem('adsDatabase', JSON.stringify(window.adsDatabase)); }
+function saveAdsDatabase() {
+    // Canlı API modunda (Postgres) ilanlar her zaman sunucudan geliyor.
+    // Burada localStorage'a resim/base64 içeren büyük `adsDatabase` yazmak mobilde quota aşımına yol açıyor.
+    if (useLiveApi()) return;
+    try {
+        localStorage.setItem('adsDatabase', JSON.stringify(window.adsDatabase));
+    } catch (e) {}
+}
 function saveFavorites() { localStorage.setItem('favorites', JSON.stringify(window.favorites)); }
 function saveCredits() { localStorage.setItem('userCredits', JSON.stringify(window.userCredits)); }
 function saveVerified() { localStorage.setItem('alsat_verified', JSON.stringify(window.userVerifiedUntil)); }
